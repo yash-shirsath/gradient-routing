@@ -79,7 +79,7 @@ class DataManager:
 
             train_tensors = t.stack(
                 [
-                    transform(img).reshape(self.config.img_dim * self.config.img_dim)
+                    transform(img)
                     for img, _ in tqdm(mnist_train, desc="Processing Training Data")  # type: ignore
                 ]
             )
@@ -119,7 +119,12 @@ class MNISTClassifier(nn.Module):
         self.config = config
 
         in_dim = self.config.img_dim * self.config.img_dim
-        self.net = nn.Sequential(nn.Linear(in_dim, 512), nn.ReLU(), nn.Linear(512, 10))
+        self.net = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(in_dim, 512),
+            nn.ReLU(),
+            nn.Linear(512, 10),
+        )
 
     def forward(
         self, x: Float[t.Tensor, "batch img_size"]
@@ -132,13 +137,14 @@ class MNISTClassifier(nn.Module):
         return t.nn.functional.cross_entropy(preds, y)
 
 
-class Trainer:
+class ModelManager:
     def __init__(
         self, config: MNISTConfig, data_manager: DataManager, model: MNISTClassifier
     ) -> None:
         self.config = config
         self.data_manager = data_manager
         self.model = model
+        self.opt = t.optim.Adam(self.model.parameters(), lr=self.config.lr)
         self.best_val_loss = float("inf")
         os.makedirs(self.config.checkpoint_dir, exist_ok=True)
 
@@ -174,7 +180,6 @@ class Trainer:
         initialize optimizer
         """
         self.data_manager.load_mnist()
-        self.opt = t.optim.Adam(self.model.parameters(), lr=self.config.lr)
 
     def evaluate(self):
         with t.no_grad():
@@ -200,6 +205,7 @@ class Trainer:
         return loss
 
     def train(self):
+        self.model.train()
         assert self.data_manager.train_loader is not None
         for i, (x, y) in tqdm(
             enumerate(self.data_manager.train_loader), desc="Training"
@@ -208,6 +214,7 @@ class Trainer:
             print(f"Batch loss: {loss:.4f}")
             if i % 100 == 0:
                 val_loss = self.evaluate()
+                self.save_checkpoint(self.config.latest_model_path)
                 # Save best model if validation loss improved
                 if val_loss < self.best_val_loss:
                     self.best_val_loss = val_loss
@@ -218,10 +225,12 @@ def main():
     config = MNISTConfig()
     data_manager = DataManager(config)
     model = MNISTClassifier(config)
-    trainer = Trainer(config, data_manager, model)
+    trainer = ModelManager(config, data_manager, model)
     trainer.train_setup()
     trainer.train()
 
 
+print("outside if")
 if __name__ == "__main__":
+    print("inside if")
     main()
