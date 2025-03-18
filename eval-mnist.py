@@ -15,20 +15,18 @@ data_manager.load_mnist()
 model = MNISTClassifier(config)
 manager = ModelManager(config, data_manager, model)
 manager.load_checkpoint(load_best=True)
-# %%
 # Sample 10 random images from test set
 test_loader = data_manager.test_loader
+# %%
 assert test_loader is not None
 images, labels = next(iter(test_loader))
 images, labels = images[:10], labels[:10]
 
-# %%
 # Get predictions
 with t.no_grad():
     predictions = model(images)
     predicted_labels = t.argmax(predictions, dim=1)
 
-# %%
 # Display images and predictions
 fig, axes = plt.subplots(2, 5, figsize=(15, 6))
 axes = axes.ravel()

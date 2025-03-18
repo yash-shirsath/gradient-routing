@@ -17,6 +17,7 @@ class MNISTConfig:
     lr = 1e-3
     val_split = 0.1
     batch_size = 512
+    epochs = 10
     checkpoint_dir = "checkpoints"
     best_model_path = "checkpoints/best_model.pt"
     latest_model_path = "checkpoints/latest_model.pt"
@@ -109,7 +110,7 @@ class DataManager:
             val_dataset, shuffle=True, batch_size=self.config.batch_size
         )
         self.test_loader = torch.utils.data.DataLoader(
-            test_dataset, batch_size=self.config.batch_size
+            test_dataset, batch_size=self.config.batch_size, shuffle=True
         )
 
 
@@ -207,18 +208,19 @@ class ModelManager:
     def train(self):
         self.model.train()
         assert self.data_manager.train_loader is not None
-        for i, (x, y) in tqdm(
-            enumerate(self.data_manager.train_loader), desc="Training"
-        ):
-            loss = self.train_step(x, y)
-            print(f"Batch loss: {loss:.4f}")
-            if i % 100 == 0:
-                val_loss = self.evaluate()
-                self.save_checkpoint(self.config.latest_model_path)
-                # Save best model if validation loss improved
-                if val_loss < self.best_val_loss:
-                    self.best_val_loss = val_loss
-                    self.save_checkpoint(self.config.best_model_path)
+        for _ in range(self.config.epochs):
+            for i, (x, y) in tqdm(
+                enumerate(self.data_manager.train_loader), desc="Training"
+            ):
+                loss = self.train_step(x, y)
+                print(f"Batch loss: {loss:.4f}")
+                if i % 100 == 0:
+                    val_loss = self.evaluate()
+                    self.save_checkpoint(self.config.latest_model_path)
+                    # Save best model if validation loss improved
+                    if val_loss < self.best_val_loss:
+                        self.best_val_loss = val_loss
+                        self.save_checkpoint(self.config.best_model_path)
 
 
 def main():
@@ -230,7 +232,5 @@ def main():
     trainer.train()
 
 
-print("outside if")
 if __name__ == "__main__":
-    print("inside if")
     main()
