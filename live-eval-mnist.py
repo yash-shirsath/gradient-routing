@@ -5,6 +5,7 @@ from mnist import MNISTConfig, MNISTClassifier, ModelManager, DataManager
 from torchvision import transforms
 import time
 import matplotlib.pyplot as plt
+from scipy.stats import entropy
 
 
 class DrawingInterface:
@@ -25,7 +26,7 @@ class DrawingInterface:
         # Initialize prediction display
         self.prediction = None
         self.last_prediction_time = 0
-        self.prediction_interval = 0.1  # Update prediction every 100ms
+        self.prediction_interval_MS = 0.3
 
         # Create the same transform as used in training
         self.transform = transforms.Compose(
@@ -46,13 +47,14 @@ class DrawingInterface:
             self.last_point = (x, y)
             # Only update prediction if enough time has passed
             current_time = time.time()
-            if current_time - self.last_prediction_time >= self.prediction_interval:
-                # self.update_prediction()
+            if current_time - self.last_prediction_time >= self.prediction_interval_MS:
+                self.update_prediction()
                 self.last_prediction_time = current_time
         elif event == cv2.EVENT_LBUTTONUP:
             self.last_point = None
             # Always update prediction when mouse is released
             self.update_prediction()
+            self.compare_to_test()
 
     def preprocess_drawing(self):
         # Resize to MNIST size (28x28)
@@ -61,8 +63,7 @@ class DrawingInterface:
         from PIL import Image
 
         pil_image = Image.fromarray(resized)
-        # Display PIL image for debugging
-        pil_image.show()
+
         # Apply the same transform as training
         tensor = self.transform(pil_image)
         # Ensure we have a torch tensor and add batch dimension
@@ -78,13 +79,64 @@ class DrawingInterface:
             output = self.model_manager.model(input_tensor)
             prediction = output.argmax(dim=1).item()
             self.prediction = prediction
-            self.compare_to_test()
+            # self.compare_to_test()
+
+    def plot_distributions_with_kl(
+        self, drawing_pixels, test_pixels, ax1, ax2, bins=50
+    ):
+        """Plot distributions with KL divergence comparison."""
+        # Calculate histograms
+        drawing_hist, drawing_bins = np.histogram(
+            drawing_pixels, bins=bins, density=True
+        )
+        test_hist, test_bins = np.histogram(test_pixels, bins=bins, density=True)
+
+        # Calculate KL divergence using scipy's entropy
+        # Add small epsilon to avoid division by zero
+        epsilon = 1e-10
+        test_hist = np.clip(test_hist, epsilon, 1)
+        drawing_hist = np.clip(drawing_hist, epsilon, 1)
+
+        # Normalize the distributions
+        drawing_hist = drawing_hist / np.sum(drawing_hist)
+        test_hist = test_hist / np.sum(test_hist)
+
+        # Calculate KL divergence
+        kl_div = entropy(drawing_hist, test_hist)
+
+        # Plot drawing distribution
+        ax1.hist(drawing_pixels, bins=bins, alpha=0.7, color="blue", density=True)
+        drawing_mean = drawing_pixels.mean()
+        drawing_std = drawing_pixels.std()
+        ax1.axvline(
+            drawing_mean,
+            color="red",
+            linestyle="dashed",
+            label=f"Mean: {drawing_mean:.2f}",
+        )
+        ax1.text(0.02, 0.95, f"Std Dev: {drawing_std:.2f}", transform=ax1.transAxes)
+        ax1.set_title("Your Drawing Distribution")
+        ax1.legend()
+
+        # Plot test distribution
+        ax2.hist(test_pixels, bins=bins, alpha=0.7, color="blue", density=True)
+        test_mean = test_pixels.mean()
+        test_std = test_pixels.std()
+        ax2.axvline(
+            test_mean, color="red", linestyle="dashed", label=f"Mean: {test_mean:.2f}"
+        )
+        ax2.text(0.02, 0.95, f"Std Dev: {test_std:.2f}", transform=ax2.transAxes)
+        ax2.set_title("Test Image Distribution")
+        ax2.legend()
+
+        return kl_div
 
     def compare_to_test(self):
         self.model_manager.data_manager.load_mnist()
         test_loader = self.model_manager.data_manager.test_loader
         assert test_loader is not None
         x, y = next(iter(test_loader))
+
         # Create a figure with subplots - images on top, distributions below
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 10))
 
@@ -103,49 +155,13 @@ class DrawingInterface:
         ax2.set_title(f"Test Image (Label: {y[0].item()}, Prediction: {pred2})")
         ax2.axis("off")
 
-        # Plot pixel intensity distributions
+        # Get pixel distributions
         drawing_pixels = input_tensor.squeeze().numpy().flatten()
         test_pixels = x[0].squeeze().numpy().flatten()
 
-        # Drawing distribution
-        ax3.hist(drawing_pixels, bins=50, alpha=0.7, color="blue")
-        drawing_mean = drawing_pixels.mean()
-        drawing_median = np.median(drawing_pixels)
-        drawing_std = drawing_pixels.std()
-        ax3.axvline(
-            drawing_mean,
-            color="red",
-            linestyle="dashed",
-            label=f"Mean: {drawing_mean:.2f}",
-        )
-        ax3.axvline(
-            drawing_median,
-            color="green",
-            linestyle="dashed",
-            label=f"Median: {drawing_median:.2f}",
-        )
-        ax3.text(0.02, 0.95, f"Std Dev: {drawing_std:.2f}", transform=ax3.transAxes)
-        ax3.set_title("Your Drawing Pixel Distribution")
-        ax3.legend()
-
-        # Test image distribution
-        ax4.hist(test_pixels, bins=50, alpha=0.7, color="blue")
-        test_mean = test_pixels.mean()
-        test_median = np.median(test_pixels)
-        test_std = test_pixels.std()
-        ax4.axvline(
-            test_mean, color="red", linestyle="dashed", label=f"Mean: {test_mean:.2f}"
-        )
-        ax4.axvline(
-            test_median,
-            color="green",
-            linestyle="dashed",
-            label=f"Median: {test_median:.2f}",
-        )
-        ax4.text(0.02, 0.95, f"Std Dev: {test_std:.2f}", transform=ax4.transAxes)
-        ax4.set_title("Test Image Pixel Distribution")
-        ax4.legend()
-
+        # Plot distributions with KL divergence
+        kl_div = self.plot_distributions_with_kl(drawing_pixels, test_pixels, ax3, ax4)
+        plt.suptitle(f"KL Divergence: {kl_div:.4f}")
         plt.tight_layout()
         plt.show()
 
