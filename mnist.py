@@ -17,7 +17,7 @@ class MNISTConfig:
     log_wandb = False
     lr = 1e-3
     val_split = 0.1
-    batch_size = 512
+    batch_size = 1024
     epochs = 10
     checkpoint_dir = "checkpoints"
     best_model_path = "checkpoints/best_model.pt"
@@ -247,7 +247,7 @@ class ModelManager:
         self.config = config
         self.data_manager = data_manager
         self.model = model
-        self.opt = t.optim.Adam(self.model.parameters(), lr=self.config.lr)
+        self.opt = t.optim.AdamW(self.model.parameters(), lr=self.config.lr)
         self.best_val_loss = float("inf")
         os.makedirs(self.config.checkpoint_dir, exist_ok=True)
 
