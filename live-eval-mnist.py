@@ -1,12 +1,16 @@
 # %%
+import time
+
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from mnist import MNISTConfig, MNISTClassifier, ModelManager, DataManager
-from torchvision import transforms
-import time
-import matplotlib.pyplot as plt
 from scipy.stats import entropy
+from torchvision import transforms
+
+from data import DataManager
+from mlp import MNISTClassifier, MNISTConfig
+from train import ModelManager
 
 
 class DrawingInterface:
@@ -240,7 +244,8 @@ class DrawingInterface:
 def main():
     # Initialize the model and load the best checkpoint
     config = MNISTConfig()
-    data_manager = DataManager(config)
+    data_manager = DataManager()
+    data_manager.prepare_data(recipe=["mnist"], val_split=0.0, batch_size=10)
     model = MNISTClassifier(config)
     model_manager = ModelManager(config, data_manager, model)
     model_manager.load_checkpoint(load_best=True)

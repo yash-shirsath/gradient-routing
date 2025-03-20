@@ -1,12 +1,12 @@
-from synthetic import resize_and_reposition
-from mnist import DataManager, MNISTConfig
 import matplotlib.pyplot as plt
+
+from data import DataManager
+from synthetic import resize_and_reposition
 
 
 def visualize_resize_and_reposition():
-    config = MNISTConfig()
-    data_manager = DataManager(config)
-    data_manager.load_mnist()
+    data_manager = DataManager()
+    data_manager.prepare_data(recipe=["mnist"])
 
     # Get 4 random images from test set
     test_loader = data_manager.test_loader

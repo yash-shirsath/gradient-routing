@@ -1,14 +1,15 @@
 # %%
-import torch as t
 import matplotlib.pyplot as plt
-from mnist import MNISTConfig, DataManager, MNISTClassifier, ModelManager
-import random
+import torch as t
+
+from mlp import DataManager, MNISTClassifier, MNISTConfig
+from train import ModelManager
 
 # %%
 # Load configuration and data
 config = MNISTConfig()
-data_manager = DataManager(config)
-data_manager.load_mnist()
+data_manager = DataManager()
+data_manager.prepare_data(recipe=["mnist"], val_split=0.0, batch_size=10)
 
 # %%
 # Load the model

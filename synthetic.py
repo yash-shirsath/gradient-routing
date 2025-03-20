@@ -1,5 +1,4 @@
 # %%
-from matplotlib import pyplot as plt
 import torch as t
 from torchvision.transforms import functional as F
 
