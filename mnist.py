@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Literal, Optional
 import torch as t
 import torch.nn as nn
 import torch.utils.data
@@ -8,6 +8,7 @@ from tqdm import tqdm
 import os
 from dataclasses import dataclass
 from jaxtyping import Float, Int
+from synthetic import resize_and_reposition
 
 
 @dataclass(frozen=True)
@@ -21,55 +22,74 @@ class MNISTConfig:
     checkpoint_dir = "checkpoints"
     best_model_path = "checkpoints/best_model.pt"
     latest_model_path = "checkpoints/latest_model.pt"
+    cache_dir = "data/cache"
+    synthetic_dir = "data/synthetic"
 
 
 class DataManager:
     def __init__(self, config: MNISTConfig):
-        self.cache_dir = "data/cache"
-        os.makedirs(self.cache_dir, exist_ok=True)
-        self.train_cache_path = os.path.join(self.cache_dir, "train_tensors.pt")
-        self.test_cache_path = os.path.join(self.cache_dir, "test_tensors.pt")
-        self.train_labels_cache_path = os.path.join(self.cache_dir, "train_labels.pt")
-        self.test_labels_cache_path = os.path.join(self.cache_dir, "test_labels.pt")
         self.config = config
+        os.makedirs(self.config.cache_dir, exist_ok=True)
 
         self.train_loader: Optional[torch.utils.data.DataLoader] = None
         self.test_loader: Optional[torch.utils.data.DataLoader] = None
 
-    def _load_from_cache(self):
+    def _load_from_cache(
+        self,
+        data_type: Literal["synthetic", "base"],
+        split: Literal["train", "test"],
+        suffix: Literal["tensors", "labels"],
+    ):
         """Load tensors from cache if they exist."""
-        if all(
-            os.path.exists(path)
-            for path in [
-                self.train_cache_path,
-                self.test_cache_path,
-                self.train_labels_cache_path,
-                self.test_labels_cache_path,
-            ]
-        ):
-            print("Loading data from cache...")
-            train_tensors = t.load(self.train_cache_path)
-            test_tensors = t.load(self.test_cache_path)
-            train_labels = t.load(self.train_labels_cache_path)
-            test_labels = t.load(self.test_labels_cache_path)
-            return train_tensors, test_tensors, train_labels, test_labels
+        if os.path.exists(self._build_path(data_type, split, suffix)):
+            print(f"Loading {data_type} {split} {suffix} from cache...")
+            data = t.load(self._build_path(data_type, split, suffix))
+            return data
         return None
 
-    def _save_to_cache(self, train_tensors, test_tensors, train_labels, test_labels):
-        """Save processed tensors to cache."""
-        print("Saving data to cache...")
-        t.save(train_tensors, self.train_cache_path)
-        t.save(test_tensors, self.test_cache_path)
-        t.save(train_labels, self.train_labels_cache_path)
-        t.save(test_labels, self.test_labels_cache_path)
+    def _build_path(
+        self,
+        data_type: Literal["synthetic", "base"],
+        split: Literal["train", "test"],
+        suffix: Literal["tensors", "labels"],
+    ):
+        return os.path.join(self.config.cache_dir, data_type, f"{split}_{suffix}.pt")
 
-    def load_mnist(self):
-        """Return MNIST data using the provided Tensor class."""
-        # Try to load from cache first
-        cached_data = self._load_from_cache()
-        if cached_data is not None:
-            train_tensors, test_tensors, train_labels, test_labels = cached_data
-        else:
+    def _save_to_cache(
+        self,
+        data_type: Literal["synthetic", "base"],
+        split: Literal["train", "test"],
+        suffix: Literal["tensors", "labels"],
+        data: t.Tensor,
+    ):
+        """Save processed tensors to cache."""
+        print(f"Saving {data_type} {split} {suffix} to cache...")
+        os.makedirs(
+            os.path.dirname(self._build_path(data_type, split, suffix)), exist_ok=True
+        )
+        t.save(data, self._build_path(data_type, split, suffix))
+
+    def load_mnist(self) -> tuple[t.Tensor, t.Tensor, t.Tensor, t.Tensor]:
+        """
+        Attempts to load from cache if available, otherwise preprocesses and caches data.
+
+        Returns:
+            train_tensors: t.Tensor
+            test_tensors: t.Tensor
+            train_labels: t.Tensor
+            test_labels: t.Tensor
+        """
+
+        train_tensors, test_tensors, train_labels, test_labels = (
+            self._load_from_cache("base", "train", "tensors"),
+            self._load_from_cache("base", "test", "tensors"),
+            self._load_from_cache("base", "train", "labels"),
+            self._load_from_cache("base", "test", "labels"),
+        )
+        if any(
+            data is None
+            for data in [train_tensors, test_tensors, train_labels, test_labels]
+        ):
             mnist_train = datasets.MNIST("data", train=True, download=True)
             mnist_test = datasets.MNIST("data", train=False, download=True)
 
@@ -94,24 +114,106 @@ class DataManager:
             test_labels = t.tensor([label for _, label in mnist_test])
 
             # Save to cache
-            self._save_to_cache(train_tensors, test_tensors, train_labels, test_labels)
+            self._save_to_cache("base", "train", "tensors", train_tensors)
+            self._save_to_cache("base", "test", "tensors", test_tensors)
+            self._save_to_cache("base", "train", "labels", train_labels)
+            self._save_to_cache("base", "test", "labels", test_labels)
 
-        train_dataset = torch.utils.data.TensorDataset(train_tensors, train_labels)
-        test_dataset = torch.utils.data.TensorDataset(test_tensors, test_labels)
+        return train_tensors, test_tensors, train_labels, test_labels  # type: ignore
+
+    def prepare_data(
+        self,
+        recipe: list[Literal["mnist", "synthetic"]],
+    ):
+        """
+        Loads preprocessed data based on recipe
+        Assembles train, val, and test loaders
+        """
+        val_split = self.config.val_split
+        batch_size = self.config.batch_size
+
+        if "mnist" in recipe:
+            train_tensors, test_tensors, train_labels, test_labels = self.load_mnist()
+
+        if "synthetic" in recipe:
+            (
+                synthetic_train_tensors,
+                synthetic_train_labels,
+                synthetic_test_tensors,
+                synthetic_test_labels,
+            ) = self.load_synthetic()
+
+            train_tensors = t.cat([train_tensors, synthetic_train_tensors])
+            train_labels = t.cat([train_labels, synthetic_train_labels])
+            test_tensors = t.cat([test_tensors, synthetic_test_tensors])
+            test_labels = t.cat([test_labels, synthetic_test_labels])
+
+        train_dataset = torch.utils.data.TensorDataset(train_tensors, train_labels)  # type: ignore
+        test_dataset = torch.utils.data.TensorDataset(test_tensors, test_labels)  # type: ignore
 
         train_dataset, val_dataset = torch.utils.data.random_split(
             train_dataset,
-            [1 - self.config.val_split, self.config.val_split],
+            [1 - val_split, val_split],
         )
         self.train_loader = torch.utils.data.DataLoader(
-            train_dataset, shuffle=True, batch_size=self.config.batch_size
+            train_dataset, batch_size=batch_size, shuffle=True
         )
         self.val_loader = torch.utils.data.DataLoader(
-            val_dataset, shuffle=True, batch_size=self.config.batch_size
+            val_dataset, batch_size=batch_size, shuffle=True
         )
         self.test_loader = torch.utils.data.DataLoader(
-            test_dataset, batch_size=self.config.batch_size, shuffle=True
+            test_dataset, batch_size=batch_size, shuffle=True
         )
+
+    def load_synthetic(self) -> tuple[t.Tensor, t.Tensor, t.Tensor, t.Tensor]:
+        """
+        Attempts to load from cache if available, otherwise generates and caches data.
+        Returns train, train_labels, test, test_labels
+        """
+        train_tensors, train_labels, test_tensors, test_labels = (
+            self._load_from_cache("synthetic", "train", "tensors"),
+            self._load_from_cache("synthetic", "train", "labels"),
+            self._load_from_cache("synthetic", "test", "tensors"),
+            self._load_from_cache("synthetic", "test", "labels"),
+        )
+        if any(
+            data is None
+            for data in [train_tensors, train_labels, test_tensors, test_labels]
+        ):
+            train_tensors, train_labels, test_tensors, test_labels = (
+                self.generate_synthetic()
+            )
+
+        return train_tensors, train_labels, test_tensors, test_labels  # type: ignore
+
+    def generate_synthetic(self, n=5):
+        """
+        Creates and caches n augments of each element in mnist
+        """
+        train_tensors, test_tensors, train_labels, test_labels = self.load_mnist()
+
+        def generate(x: t.Tensor, y: t.Tensor, n: int):
+            synthetic_tensors = []
+            for i in tqdm(
+                range(len(x)),
+                desc=f"Generating {n} augments per item in mnist",
+                total=len(x),
+            ):
+                for _ in range(n):
+                    synthetic_tensors.append(
+                        resize_and_reposition(x[i].squeeze(0)).unsqueeze(0)
+                    )
+            return t.stack(synthetic_tensors), y.repeat_interleave(n)
+
+        synthetic_tensors, synthetic_labels = generate(train_tensors, train_labels, n)
+        self._save_to_cache("synthetic", "train", "tensors", synthetic_tensors)
+        self._save_to_cache("synthetic", "train", "labels", synthetic_labels)
+
+        synthetic_tensors, synthetic_labels = generate(test_tensors, test_labels, n)
+        self._save_to_cache("synthetic", "test", "tensors", synthetic_tensors)
+        self._save_to_cache("synthetic", "test", "labels", synthetic_labels)
+
+        return synthetic_tensors, synthetic_labels, test_tensors, test_labels
 
 
 class MNISTClassifier(nn.Module):
@@ -173,15 +275,6 @@ class ModelManager:
             return True
         return False
 
-    def train_setup(self):
-        """
-        get data
-        initialize model weights? (todo)
-        initialize w&b (todo)
-        initialize optimizer
-        """
-        self.data_manager.load_mnist()
-
     def evaluate(self):
         with t.no_grad():
             self.model.eval()
@@ -212,23 +305,25 @@ class ModelManager:
             for i, (x, y) in tqdm(
                 enumerate(self.data_manager.train_loader), desc="Training"
             ):
-                loss = self.train_step(x, y)
-                print(f"Batch loss: {loss:.4f}")
+                self.train_step(x, y)
+
                 if i % 100 == 0:
                     val_loss = self.evaluate()
-                    self.save_checkpoint(self.config.latest_model_path)
-                    # Save best model if validation loss improved
-                    if val_loss < self.best_val_loss:
-                        self.best_val_loss = val_loss
-                        self.save_checkpoint(self.config.best_model_path)
+                    if i % 1000 == 0:
+                        self.save_checkpoint(self.config.latest_model_path)
+                        # Save best model if validation loss improved
+                        if val_loss < self.best_val_loss:
+                            self.best_val_loss = val_loss
+                            self.save_checkpoint(self.config.best_model_path)
 
 
 def main():
     config = MNISTConfig()
     data_manager = DataManager(config)
+    data_manager.prepare_data(["mnist", "synthetic"])
+
     model = MNISTClassifier(config)
     trainer = ModelManager(config, data_manager, model)
-    trainer.train_setup()
     trainer.train()
 
 

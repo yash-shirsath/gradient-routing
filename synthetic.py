@@ -3,14 +3,12 @@ from matplotlib import pyplot as plt
 import torch as t
 from torchvision.transforms import functional as F
 
-from mnist import DataManager, MNISTConfig
-
 
 def resize_and_reposition(
     image: t.Tensor, max_rot_deg=30, resize_factor=0.5
 ) -> t.Tensor:
     """
-    Takes a 28x28 MNIST digit image, resizes it to 60% of original size,
+    Takes a preprocessed MNIST digit image of shape (28*28), resizes it to 60% of original size,
     and places it at a random position within the 28x28 grid.
 
     Args:
@@ -19,6 +17,7 @@ def resize_and_reposition(
     Returns:
         A tensor of shape (28, 28) with the resized and repositioned digit
     """
+    assert image.shape == (28, 28)
     # Calculate new size (60% of original)
     new_size = int(28 * resize_factor)
     fill = image.min().item()
@@ -56,40 +55,5 @@ def resize_and_reposition(
 
     return output
 
-
-def visualize_resize_and_reposition():
-    config = MNISTConfig()
-    data_manager = DataManager(config)
-    data_manager.load_mnist()
-
-    # Get 4 random images from test set
-    test_loader = data_manager.test_loader
-    assert test_loader is not None
-    images, labels = next(iter(test_loader))
-    images, labels = images[:4], labels[:4]
-
-    # Create figure with 4x6 subplots
-    fig, axes = plt.subplots(4, 6, figsize=(15, 10))
-    axes = axes.ravel()
-
-    # For each original image, show it and 5 augmented versions
-    for i in range(4):
-        # Show original image
-        axes[i * 6].imshow(images[i].squeeze(), cmap="gray")
-        axes[i * 6].set_title(f"Original\nLabel: {labels[i].item()}")
-        axes[i * 6].axis("off")
-
-        # Show 5 augmented versions
-        for j in range(5):
-            augmented = resize_and_reposition(images[i].squeeze())
-            axes[i * 6 + j + 1].imshow(augmented, cmap="gray")
-            axes[i * 6 + j + 1].set_title(f"Augmented {j + 1}")
-            axes[i * 6 + j + 1].axis("off")
-
-    plt.tight_layout()
-    plt.show()
-
-
-visualize_resize_and_reposition()
 
 # %%

@@ -1,3 +1,4 @@
+# %%
 import cv2
 import numpy as np
 import torch
@@ -132,7 +133,7 @@ class DrawingInterface:
         return kl_div
 
     def compare_to_test(self):
-        self.model_manager.data_manager.load_mnist()
+        self.model_manager.data_manager.prepare_data(recipe=["mnist"])
         test_loader = self.model_manager.data_manager.test_loader
         assert test_loader is not None
         x, y = next(iter(test_loader))
@@ -231,3 +232,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# %%
