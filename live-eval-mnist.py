@@ -80,7 +80,6 @@ class DrawingInterface:
             output = self.model_manager.model(input_tensor)
             prediction = output.argmax(dim=1).item()
             self.prediction = prediction
-            # self.compare_to_test()
 
     def plot_distributions_with_kl(
         self, drawing_pixels, test_pixels, ax1, ax2, bins=50
@@ -149,16 +148,37 @@ class DrawingInterface:
         ax1.set_title(f"Your Drawing (Prediction: {pred1})")
         ax1.axis("off")
 
-        # Plot first test image
-        with torch.no_grad():
-            pred2 = self.model_manager.model(x[0:1]).argmax(dim=1).item()
-        ax2.imshow(x[0].squeeze(), cmap="gray")
-        ax2.set_title(f"Test Image (Label: {y[0].item()}, Prediction: {pred2})")
+        # Find first test image with label matching pred1
+        matching_indices = (y == pred1).nonzero().squeeze()
+        if len(matching_indices) > 0:
+            first_match_idx = matching_indices[0].item()
+            with torch.no_grad():
+                pred2 = (
+                    self.model_manager.model(x[first_match_idx : first_match_idx + 1])
+                    .argmax(dim=1)
+                    .item()
+                )
+            ax2.imshow(x[first_match_idx].squeeze(), cmap="gray")
+            ax2.set_title(
+                f"Test Image (Label: {y[first_match_idx].item()}, Prediction: {pred2})"
+            )
+        else:
+            ax2.text(
+                0.5,
+                0.5,
+                f"No test image with label {pred1}",
+                horizontalalignment="center",
+                verticalalignment="center",
+            )
+            ax2.set_title("No matching test image found")
         ax2.axis("off")
 
         # Get pixel distributions
         drawing_pixels = input_tensor.squeeze().numpy().flatten()
-        test_pixels = x[0].squeeze().numpy().flatten()
+        if len(matching_indices) > 0:
+            test_pixels = x[first_match_idx].squeeze().numpy().flatten()
+        else:
+            test_pixels = np.zeros_like(drawing_pixels)  # Use zeros if no match found
 
         # Plot distributions with KL divergence
         kl_div = self.plot_distributions_with_kl(drawing_pixels, test_pixels, ax3, ax4)
