@@ -2,7 +2,8 @@
 import matplotlib.pyplot as plt
 import torch as t
 
-from mlp import DataManager, MNISTClassifier, MNISTConfig
+from data import DataManager
+from mlp import MNISTClassifier, MNISTConfig
 from train import ModelManager
 
 # %%
