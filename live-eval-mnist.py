@@ -4,19 +4,20 @@ import time
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
-import torch
+import torch as t
 from scipy.stats import entropy
 from torchvision import transforms
 
 from data import DataManager
 from mlp import MNISTClassifier, MNISTConfig
-from train import Checkpoint
+from checkpoint import Checkpoint
 
 
 class DrawingInterface:
-    def __init__(self, model_manager: Checkpoint):
-        self.model_manager = model_manager
-        self.model_manager.model.eval()
+    def __init__(self, model: MNISTClassifier, data_manager: DataManager):
+        self.model = model
+        self.model.eval()
+        self.data_manager = data_manager
 
         # Drawing window setup
         self.window_size = 280  # 10x the MNIST size for better drawing
@@ -72,16 +73,16 @@ class DrawingInterface:
         # Apply the same transform as training
         tensor = self.transform(pil_image)
         # Ensure we have a torch tensor and add batch dimension
-        if not isinstance(tensor, torch.Tensor):
-            tensor = torch.from_numpy(tensor)
+        if not isinstance(tensor, t.Tensor):
+            tensor = t.from_numpy(tensor)
         tensor = tensor.unsqueeze(0)
         return tensor
 
     def update_prediction(self):
-        with torch.no_grad():
+        with t.no_grad():
             input_tensor = self.preprocess_drawing()
 
-            output = self.model_manager.model(input_tensor)
+            output = self.model(input_tensor)
             prediction = output.argmax(dim=1).item()
             self.prediction = prediction
 
@@ -136,8 +137,7 @@ class DrawingInterface:
         return kl_div
 
     def compare_to_test(self):
-        self.model_manager.data_manager.prepare_data(recipe=["mnist"])
-        test_loader = self.model_manager.data_manager.test_loader
+        test_loader = self.data_manager.test_loader
         assert test_loader is not None
         x, y = next(iter(test_loader))
 
@@ -146,8 +146,8 @@ class DrawingInterface:
 
         # Plot preprocessed drawing
         input_tensor = self.preprocess_drawing()
-        with torch.no_grad():
-            pred1 = self.model_manager.model(input_tensor).argmax(dim=1).item()
+        with t.no_grad():
+            pred1 = self.model(input_tensor).argmax(dim=1).item()
         ax1.imshow(input_tensor.squeeze(), cmap="gray")
         ax1.set_title(f"Your Drawing (Prediction: {pred1})")
         ax1.axis("off")
@@ -156,9 +156,9 @@ class DrawingInterface:
         matching_indices = (y == pred1).nonzero().squeeze()
         if len(matching_indices) > 0:
             first_match_idx = matching_indices[0].item()
-            with torch.no_grad():
+            with t.no_grad():
                 pred2 = (
-                    self.model_manager.model(x[first_match_idx : first_match_idx + 1])
+                    self.model(x[first_match_idx : first_match_idx + 1])
                     .argmax(dim=1)
                     .item()
                 )
@@ -245,13 +245,17 @@ def main():
     # Initialize the model and load the best checkpoint
     config = MNISTConfig()
     data_manager = DataManager()
-    data_manager.prepare_data(recipe=["mnist"], val_split=0.0, batch_size=10)
+    data_manager.prepare_data(recipe=["mnist"], val_split=0.0, batch_size=100)
     model = MNISTClassifier(config)
-    model_manager = Checkpoint(config, data_manager, model)
-    model_manager.load_checkpoint(load_best=True)
+    checkpoint = Checkpoint(
+        run_name="mnist_25_03_24_14_30",
+        model=model,
+        optimizer=t.optim.AdamW(model.parameters(), lr=config.lr),
+    )
+    checkpoint.load_checkpoint(load_best=True)
 
     # Create and run the drawing interface
-    interface = DrawingInterface(model_manager)
+    interface = DrawingInterface(model, data_manager)
     interface.run()
 
 

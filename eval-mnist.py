@@ -4,7 +4,7 @@ import torch as t
 
 from data import DataManager
 from mlp import MNISTClassifier, MNISTConfig
-from train import Checkpoint
+from checkpoint import Checkpoint
 
 # %%
 # Load configuration and data
@@ -15,8 +15,12 @@ data_manager.prepare_data(recipe=["mnist"], val_split=0.0, batch_size=10)
 # %%
 # Load the model
 model = MNISTClassifier(config)
-manager = Checkpoint(config, data_manager, model)
-manager.load_checkpoint(load_best=True)
+checkpoint = Checkpoint(
+    run_name="mnist_25_03_24_14_30",
+    model=model,
+    optimizer=t.optim.AdamW(model.parameters(), lr=config.lr),
+)
+checkpoint.load_checkpoint(load_best=True)
 # Sample 10 random images from test set
 test_loader = data_manager.test_loader
 # %%
