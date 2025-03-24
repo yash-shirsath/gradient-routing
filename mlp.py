@@ -87,16 +87,19 @@ class Trainer:
     def train(self):
         self.model.train()
         assert self.data_manager.train_loader is not None
+        total_steps = 0
         for epoch in range(self.config.epochs):
-            print(f"Epoch {epoch} of {self.config.epochs}")
+            print(f"Epoch {epoch + 1} of {self.config.epochs}")
             for i, (x, y) in tqdm(
                 enumerate(self.data_manager.train_loader), desc="Training"
             ):
                 self.train_step(x, y)
-                if i % 100 == 0:
-                    val_loss = self.evaluate()
-                    if i % 1000 == 0:
-                        self.checkpoint.save_checkpoint(val_loss, epoch)
+                total_steps += 1
+
+            if total_steps % 100 == 0:
+                val_loss = self.evaluate()
+            if total_steps % 1000 == 0:
+                self.checkpoint.save_checkpoint(val_loss, epoch)
 
 
 def train():

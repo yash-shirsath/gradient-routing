@@ -1,14 +1,10 @@
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
 import torch as t
-from tqdm import tqdm
+from jaxtyping import Float
 from torch import nn
-from jaxtyping import Float, Int
-from torchvision import datasets, transforms
+from tqdm import tqdm
 
-from data import DataManager
 from checkpoint import Checkpoint
+from data import DataManager
 
 
 class AutoencoderConfig:
@@ -17,7 +13,7 @@ class AutoencoderConfig:
     encoder_size_2: int = 256
 
     val_split: float = 0.1
-    batch_size: int = 128
+    batch_size: int = 1024
     lr: float = 1e-3
     epochs: int = 10
 
@@ -112,16 +108,19 @@ class Trainer:
     def train(self):
         self.model.train()
         assert self.data_manager.train_loader is not None
+        total_steps = 0
         for epoch in range(self.config.epochs):
-            print(f"Epoch {epoch} of {self.config.epochs}")
+            print(f"Epoch {epoch + 1} of {self.config.epochs}")
             for i, (x, y) in tqdm(
                 enumerate(self.data_manager.train_loader), desc="Training"
             ):
                 self.train_step(x)
-                if i % 100 == 0:
-                    val_loss = self.evaluate()
-                    if i % 1000 == 0:
-                        self.checkpoint.save_checkpoint(val_loss, epoch)
+                total_steps += 1
+
+            if total_steps % 100 == 0:
+                val_loss = self.evaluate()
+            if total_steps % 1000 == 0:
+                self.checkpoint.save_checkpoint(val_loss, epoch)
 
 
 def train():

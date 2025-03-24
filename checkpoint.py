@@ -3,7 +3,6 @@ import os
 
 import torch as t
 import torch.nn as nn
-from tqdm import tqdm
 
 
 class Checkpoint:
@@ -36,10 +35,12 @@ class Checkpoint:
             "epoch": epoch,
         }
         t.save(checkpoint, self.latest_model_path)
+        print(f"Saved checkpoint to {self.latest_model_path}")
+
         if val_loss < self.best_val_loss:
             self.best_val_loss = val_loss
             t.save(checkpoint, self.best_model_path)
-        print(f"Saved checkpoint to {self.latest_model_path}")
+            print(f"Saved best model to {self.best_model_path}")
 
     def load_checkpoint(self, load_best: bool = False):
         """Load model and optimizer state from disk."""
