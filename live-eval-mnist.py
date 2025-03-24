@@ -10,11 +10,11 @@ from torchvision import transforms
 
 from data import DataManager
 from mlp import MNISTClassifier, MNISTConfig
-from train import ModelManager
+from train import Checkpoint
 
 
 class DrawingInterface:
-    def __init__(self, model_manager: ModelManager):
+    def __init__(self, model_manager: Checkpoint):
         self.model_manager = model_manager
         self.model_manager.model.eval()
 
@@ -247,7 +247,7 @@ def main():
     data_manager = DataManager()
     data_manager.prepare_data(recipe=["mnist"], val_split=0.0, batch_size=10)
     model = MNISTClassifier(config)
-    model_manager = ModelManager(config, data_manager, model)
+    model_manager = Checkpoint(config, data_manager, model)
     model_manager.load_checkpoint(load_best=True)
 
     # Create and run the drawing interface

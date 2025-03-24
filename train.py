@@ -8,31 +8,34 @@ from data import DataManager
 from mlp import MNISTClassifier, MNISTConfig
 
 
-class ModelManager:
+class Checkpoint:
     def __init__(
-        self, config: MNISTConfig, data_manager: DataManager, model: MNISTClassifier
+        self, run_name: str, model: MNISTClassifier, optimizer: t.optim.Optimizer
     ) -> None:
-        self.config = config
-        self.data_manager = data_manager
+        self.run_name = run_name
         self.model = model
-        self.opt = t.optim.AdamW(self.model.parameters(), lr=self.config.lr)
+        self.optimizer = optimizer
         self.best_val_loss = float("inf")
 
         # Checkpoints
-        self.checkpoint_dir = "checkpoints"
-        self.best_model_path = "checkpoints/best_model.pt"
-        self.latest_model_path = "checkpoints/latest_model.pt"
+        self.checkpoint_dir = os.path.join("checkpoints", self.run_name)
+        self.best_model_path = os.path.join(self.checkpoint_dir, "best_model.pt")
+        self.latest_model_path = os.path.join(self.checkpoint_dir, "latest_model.pt")
         os.makedirs(self.checkpoint_dir, exist_ok=True)
 
-    def save_checkpoint(self, path: str):
+    def save_checkpoint(self, val_loss: float, epoch: int):
         """Save model and optimizer state to disk."""
         checkpoint = {
             "model_state_dict": self.model.state_dict(),
-            "optimizer_state_dict": self.opt.state_dict(),
-            "best_val_loss": self.best_val_loss,
+            "optimizer_state_dict": self.optimizer.state_dict(),
+            "best_val_loss": val_loss,
+            "epoch": epoch,
         }
-        t.save(checkpoint, path)
-        print(f"Saved checkpoint to {path}")
+        t.save(checkpoint, self.latest_model_path)
+        if val_loss < self.best_val_loss:
+            self.best_val_loss = val_loss
+            t.save(checkpoint, self.best_model_path)
+        print(f"Saved checkpoint to {self.latest_model_path}")
 
     def load_checkpoint(self, load_best: bool = False):
         """Load model and optimizer state from disk."""
@@ -40,7 +43,7 @@ class ModelManager:
         if os.path.exists(path):
             checkpoint = t.load(path)
             self.model.load_state_dict(checkpoint["model_state_dict"])
-            self.opt.load_state_dict(checkpoint["optimizer_state_dict"])
+            self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
             self.best_val_loss = checkpoint["best_val_loss"]
             print(f"Loaded checkpoint from {path}")
             return True
@@ -96,7 +99,7 @@ def main():
     )
 
     model = MNISTClassifier(config)
-    trainer = ModelManager(config, data_manager, model)
+    trainer = Checkpoint(config, data_manager, model)
     trainer.train()
 
 
