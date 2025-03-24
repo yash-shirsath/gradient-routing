@@ -3,12 +3,12 @@ import matplotlib.pyplot as plt
 import torch as t
 
 from data import DataManager
-from mlp import MNISTClassifier, MNISTConfig
+from mlp import MNISTClassifier, MLPConfig
 from checkpoint import Checkpoint
 
 # %%
 # Load configuration and data
-config = MNISTConfig()
+config = MLPConfig()
 data_manager = DataManager()
 data_manager.prepare_data(recipe=["mnist"], val_split=0.0, batch_size=10)
 

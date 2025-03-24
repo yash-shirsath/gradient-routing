@@ -9,7 +9,7 @@ from scipy.stats import entropy
 from torchvision import transforms
 
 from data import DataManager
-from mlp import MNISTClassifier, MNISTConfig
+from mlp import MNISTClassifier, MLPConfig
 from checkpoint import Checkpoint
 
 
@@ -243,7 +243,7 @@ class DrawingInterface:
 
 def main():
     # Initialize the model and load the best checkpoint
-    config = MNISTConfig()
+    config = MLPConfig()
     data_manager = DataManager()
     data_manager.prepare_data(recipe=["mnist"], val_split=0.0, batch_size=100)
     model = MNISTClassifier(config)

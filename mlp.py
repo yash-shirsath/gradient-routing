@@ -10,7 +10,7 @@ from data import DataManager
 
 
 @dataclass(frozen=True)
-class MNISTConfig:
+class MLPConfig:
     img_dim: int = 28
     log_wandb: bool = False
     lr: float = 1e-3
@@ -21,7 +21,7 @@ class MNISTConfig:
 
 
 class MNISTClassifier(nn.Module):
-    def __init__(self, config: MNISTConfig) -> None:
+    def __init__(self, config: MLPConfig) -> None:
         super().__init__()
         self.config = config
         in_dim = self.config.img_dim * self.config.img_dim
@@ -46,7 +46,7 @@ class MNISTClassifier(nn.Module):
 class Trainer:
     def __init__(
         self,
-        config: MNISTConfig,
+        config: MLPConfig,
         data_manager: DataManager,
         model: MNISTClassifier,
         run_name: str,
@@ -77,7 +77,6 @@ class Trainer:
     def train_step(
         self, x: Float[t.Tensor, "batch img_size"], y: Int[t.Tensor, "batch"]
     ):
-        assert self.data_manager.train_loader is not None
         self.opt.zero_grad()
         pred = self.model(x)
         loss = self.model.loss(pred, y)
@@ -101,7 +100,7 @@ class Trainer:
 
 
 def train():
-    config = MNISTConfig(epochs=10)
+    config = MLPConfig(epochs=10)
     data_manager = DataManager()
     data_manager.prepare_data(
         ["mnist", "synthetic"], val_split=config.val_split, batch_size=config.batch_size

@@ -1,3 +1,4 @@
+from datetime import datetime
 import os
 
 import torch as t
@@ -7,15 +8,21 @@ from tqdm import tqdm
 
 class Checkpoint:
     def __init__(
-        self, run_name: str, model: nn.Module, optimizer: t.optim.Optimizer
+        self,
+        run_name: str,
+        model: nn.Module,
+        optimizer: t.optim.Optimizer,
+        postfix_date: bool = True,
     ) -> None:
         self.run_name = run_name
         self.model = model
         self.optimizer = optimizer
         self.best_val_loss = float("inf")
 
-        # Checkpoints
-        self.checkpoint_dir = os.path.join("checkpoints", self.run_name)
+        postfix = (
+            f"_{datetime.now().strftime('%y_%m_%d_%H_%M')}" if postfix_date else ""
+        )
+        self.checkpoint_dir = os.path.join("checkpoints", self.run_name + postfix)
         self.best_model_path = os.path.join(self.checkpoint_dir, "best_model.pt")
         self.latest_model_path = os.path.join(self.checkpoint_dir, "latest_model.pt")
         os.makedirs(self.checkpoint_dir, exist_ok=True)
