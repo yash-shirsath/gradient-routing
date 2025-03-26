@@ -9,6 +9,7 @@ from tqdm import tqdm
 from checkpoint import Checkpoint
 from data import DataManager
 from jaxtyping import Float, Int
+from torch.autograd import Variable
 
 # adapted from https://github.com/g-w1/gradient-routed-vae/blob/main/vae.py. Thanks!
 
@@ -30,96 +31,55 @@ class VAEConfig:
 
 
 class VAE(nn.Module):
-    def __init__(self, config: VAEConfig):
-        super().__init__()
-        self.config = config
+    def __init__(self):
+        super(VAE, self).__init__()
+        self.hidden_size = 10
 
-        self.encoder = nn.Sequential(
-            nn.Linear(
-                self.config.image_features,
-                self.config.encoder_size_1,
-            ),
-            nn.ReLU(),
-            nn.Linear(
-                self.config.encoder_size_1,
-                self.config.encoder_size_2,
-            ),
-            nn.ReLU(),
-            nn.Linear(
-                self.config.encoder_size_2,
-                self.config.latent_size,
-            ),
-        )
-        self.mean_from_encoded = nn.Linear(
-            self.config.latent_size,
-            self.config.latent_size,
-        )
-        self.cov_diag_from_encoded = nn.Linear(
-            self.config.latent_size,
-            self.config.latent_size,
-        )
-        self.decoder = nn.Sequential(
-            nn.Linear(
-                self.config.latent_size,
-                self.config.encoder_size_2,
-            ),
-            nn.ReLU(),
-            nn.Linear(
-                self.config.encoder_size_2,
-                self.config.encoder_size_1,
-            ),
-            nn.ReLU(),
-            nn.Linear(
-                self.config.encoder_size_1,
-                self.config.image_features,
-            ),
-            nn.Sigmoid(),
-        )
+        self.fc1 = nn.Linear(784, 400)
+        self.fc21 = nn.Linear(400, self.hidden_size)
+        self.fc22 = nn.Linear(400, self.hidden_size)
+        self.fc3 = nn.Linear(self.hidden_size, 400)
+        self.fc4 = nn.Linear(400, 784)
+        self.reconstruction_function = nn.MSELoss(size_average=False)
 
-    def encode(self, images: t.Tensor):
-        latent = self.encoder(images)
-        assert latent.shape[-1] == self.config.latent_size
-        mean_from_encoded = self.mean_from_encoded(latent)
-        zeta = t.randn_like(mean_from_encoded)
-        cov_diag_from_encoded = self.cov_diag_from_encoded(latent)
-        z = mean_from_encoded + cov_diag_from_encoded * zeta
-        z.relu_()
-        return z, zeta, mean_from_encoded, cov_diag_from_encoded
+    def encode(self, x):
+        h1 = F.relu(self.fc1(x))
+        return self.fc21(h1), self.fc22(h1)
 
-    # def encode_and_mask(self, images: t.Tensor, labels: t.Tensor):
-    #     encoded_unmasked, zeta, mean_from_encoded, cov_diag_from_encoded = self.encode(
-    #         images
-    #     )
-    #     mask_one_hot = F.one_hot(labels, num_classes=self.config.latent_size).float()  # type: ignore
-    #     encoded = (
-    #         mask_one_hot * encoded_unmasked
-    #         + (1 - mask_one_hot) * encoded_unmasked.detach()
-    #     )
-    #     return encoded, zeta, mean_from_encoded, cov_diag_from_encoded
+    def reparametrize(self, mu, logvar):
+        std = logvar.mul(0.5).exp_()
 
-    def loss(self, images: t.Tensor, labels=None):
-        images = einops.rearrange(
-            images, "batch chan width height -> batch (chan width height)"
-        )
+        eps = t.FloatTensor(std.size()).normal_()
+        eps = Variable(eps)
+        return eps.mul(std).add_(mu)
+
+    def decode(self, z):
+        h3 = F.relu(self.fc3(z))
+        return F.sigmoid(self.fc4(h3))
+
+    def forward(self, x, labels=None):
+        x = x.reshape(-1, 784)
+        mu, logvar = self.encode(x)
+        z = self.reparametrize(mu, logvar)
         if labels is not None:
-            encoded, zeta, mean_from_encoded, cov_diag_from_encoded = (
-                self.encode_and_mask(images, labels)
-            )
+            mask_one_hot = F.one_hot(labels, num_classes=self.hidden_size).float()  # type: ignore
+            z = mask_one_hot * z + (1 - mask_one_hot) * z.detach()
+        y = self.decode(z)
+        return y.reshape(-1, 1, 28, 28), mu, logvar
 
-        else:
-            encoded, zeta, mean_from_encoded, cov_diag_from_encoded = self.encode(
-                images
-            )
-
-        decoded = self.decoder(encoded)
-
-        mse_loss = ((images - decoded).norm(dim=-1) ** 2).mean()
-        kl_div_loss = (
-            mean_from_encoded**2 + cov_diag_from_encoded.exp() - cov_diag_from_encoded
-        ).mean()
-        l1_reconstruction_loss = (images - decoded).abs().mean()
-        loss = l1_reconstruction_loss
-        return loss, mse_loss, kl_div_loss, l1_reconstruction_loss
+    def loss(self, recon_x, x, mu, logvar):
+        """
+        recon_x: generating images
+        x: origin images
+        mu: latent mean
+        logvar: latent log variance
+        """
+        BCE = self.reconstruction_function(recon_x, x)  # mse loss
+        # loss = 0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)
+        KLD_element = mu.pow(2).add_(logvar.exp()).mul_(-1).add_(1).add_(logvar)
+        KLD = t.sum(KLD_element).mul_(-0.5)
+        # KL divergence
+        return 0.3 * BCE + KLD
 
 
 class Trainer:
@@ -144,13 +104,11 @@ class Trainer:
     def evaluate(self) -> float:
         with t.no_grad():
             self.model.eval()
-            losses = {"total": [], "mse": [], "kl": [], "l1": []}
+            losses = {"total": []}
             for x, _ in self.data_manager.val_loader:
-                loss, mse_loss, kl_div_loss, l1_reconstruction_loss = self.model.loss(x)
+                recon_batch, mu, logvar = self.model(x)
+                loss = self.model.loss(recon_batch, x, mu, logvar)
                 losses["total"].append(loss)
-                losses["mse"].append(mse_loss)
-                losses["kl"].append(kl_div_loss)
-                losses["l1"].append(l1_reconstruction_loss)
 
             avg_losses = {k: t.tensor(v).mean() for k, v in losses.items()}
             for name, loss in avg_losses.items():
@@ -165,7 +123,8 @@ class Trainer:
     ):
         assert self.data_manager.train_loader is not None
         self.opt.zero_grad()
-        loss, *_ = self.model.loss(x)
+        recon_batch, mu, logvar = self.model(x, y)
+        loss = self.model.loss(recon_batch, x, mu, logvar)
         loss.backward()
         self.opt.step()
         return loss
@@ -198,7 +157,7 @@ def train():
         ["mnist", "synthetic"], val_split=config.val_split, batch_size=config.batch_size
     )
 
-    model = VAE(config)
+    model = VAE()
     trainer = Trainer(config, data_manager, model, "vae_no_routing_l1_only")
     trainer.train()
 

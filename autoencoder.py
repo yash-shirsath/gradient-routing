@@ -1,3 +1,5 @@
+# %%
+
 import torch as t
 from jaxtyping import Float
 from torch import nn
@@ -8,6 +10,7 @@ from data import DataManager
 from dataclasses import dataclass
 
 
+# %%
 @dataclass
 class AutoencoderConfig:
     hidden_size: int = 128

@@ -1,3 +1,4 @@
+# %%
 import os
 from typing import Literal, Optional
 
@@ -8,6 +9,8 @@ from torchvision import datasets, transforms
 from tqdm import tqdm
 
 from synthetic import resize_and_reposition
+
+import matplotlib.pyplot as plt
 
 
 class DataManager:
@@ -127,7 +130,9 @@ class DataManager:
 
             print("Preprocessing data...")
             transform = transforms.Compose(
-                [transforms.ToTensor(), transforms.Normalize((0.28,), (0.35,))]
+                [
+                    transforms.ToTensor(),
+                ]
             )
 
             train_tensors = t.stack(
@@ -202,3 +207,153 @@ class DataManager:
         self._save_to_cache("synthetic", "test", "labels", synthetic_labels)
 
         return synthetic_tensors, synthetic_labels, test_tensors, test_labels
+
+
+# %%
+
+data_manager = DataManager()
+data_manager.prepare_data(["mnist"], val_split=0.0, batch_size=1024)
+assert data_manager.train_loader is not None
+x, y = next(iter(data_manager.train_loader))
+print(x.shape)
+print(y.shape)
+
+# %%
+
+print(f"Mean: {x[0].mean():.4f}")
+print(f"Std: {x[0].std():.4f}")
+print(f"Min: {x[0].min():.4f}")
+print(f"Max: {x[0].max():.4f}")
+
+
+# %%
+mnist_train = datasets.MNIST("data", train=True, download=True)
+transform_to_tensor = transforms.Compose(
+    [
+        transforms.ToTensor(),
+    ]
+)
+tensors = t.stack(
+    [transform_to_tensor(mnist_train[i][0]) for i in range(len(mnist_train))]
+)
+transform_normalize = transforms.Normalize(2, 1)
+
+# Create figure with 4 rows and 10 columns
+fig, axes = plt.subplots(4, 10, figsize=(20, 8))
+
+for i in range(10):
+    # Get image and convert to tensor
+    tensor_img = tensors[i]
+    normalized = transform_normalize(tensor_img)
+
+    # Row 1: Original tensor image
+    axes[0, i].imshow(tensor_img.squeeze())
+    axes[0, i].set_title(f"Image {i}")
+    axes[0, i].axis("off")
+
+    # Row 2: Original tensor summary stats
+    axes[1, i].axis("off")
+    stats_text = f"Mean: {tensor_img.mean():.2f}\nStd: {tensor_img.std():.2f}\nMin: {tensor_img.min():.2f}\nMax: {tensor_img.max():.2f}"
+    axes[1, i].text(
+        0.5, 0.5, stats_text, ha="center", va="center", transform=axes[1, i].transAxes
+    )
+
+    # Row 3: Normalized image
+    axes[2, i].imshow(normalized.squeeze())
+    axes[2, i].set_title(f"Normalized {i}")
+    axes[2, i].axis("off")
+
+    # Row 4: Normalized summary stats
+    axes[3, i].axis("off")
+    norm_stats_text = f"Mean: {normalized.mean():.2f}\nStd: {normalized.std():.2f}\nMin: {normalized.min():.2f}\nMax: {normalized.max():.2f}"
+    axes[3, i].text(
+        0.5,
+        0.5,
+        norm_stats_text,
+        ha="center",
+        va="center",
+        transform=axes[3, i].transAxes,
+    )
+
+plt.tight_layout()
+plt.show()
+
+print(f"Mean: {tensors.mean():.4f}")
+print(f"Std: {tensors.std():.4f}")
+print(f"Min: {tensors.min():.4f}")
+print(f"Max: {tensors.max():.4f}")
+
+# %%
+
+
+# %%
+# Histogram of distributions before and after normalization
+mnist_train = datasets.MNIST("data", train=True, download=True)
+mnist_test = datasets.MNIST("data", train=False, download=True)
+
+# Convert to tensors without normalization (before)
+transform_before = transforms.Compose([transforms.ToTensor()])
+tensors_before_train = t.stack(
+    [transform_before(mnist_train[i][0]) for i in range(len(mnist_train))]
+)
+tensors_before_test = t.stack(
+    [transform_before(mnist_test[i][0]) for i in range(len(mnist_test))]
+)
+
+# With normalization (after)
+transform_after = transforms.Compose(
+    [transforms.ToTensor(), transforms.Normalize(0.13, 0.3)]
+)
+tensors_after_train = t.stack(
+    [transform_after(mnist_train[i][0]) for i in range(len(mnist_train))]
+)
+tensors_after_test = t.stack(
+    [transform_after(mnist_test[i][0]) for i in range(len(mnist_test))]
+)
+
+# Create figure with 2x2 subplots for the histograms
+fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+fig.suptitle("Distribution of Pixel Values Before and After Normalization", fontsize=16)
+
+# Plot histograms
+axes[0, 0].hist(tensors_before_train.flatten().numpy(), bins=50, alpha=0.7)
+axes[0, 0].set_title("Train Data - Before Normalization")
+axes[0, 0].set_xlabel("Pixel Value")
+axes[0, 0].set_ylabel("Frequency")
+
+axes[0, 1].hist(tensors_before_test.flatten().numpy(), bins=50, alpha=0.7)
+axes[0, 1].set_title("Test Data - Before Normalization")
+axes[0, 1].set_xlabel("Pixel Value")
+axes[0, 1].set_ylabel("Frequency")
+
+axes[1, 0].hist(tensors_after_train.flatten().numpy(), bins=50, alpha=0.7)
+axes[1, 0].set_title("Train Data - After Normalization")
+axes[1, 0].set_xlabel("Pixel Value")
+axes[1, 0].set_ylabel("Frequency")
+
+axes[1, 1].hist(tensors_after_test.flatten().numpy(), bins=50, alpha=0.7)
+axes[1, 1].set_title("Test Data - After Normalization")
+axes[1, 1].set_xlabel("Pixel Value")
+axes[1, 1].set_ylabel("Frequency")
+
+plt.tight_layout(rect=(0, 0, 1, 0.95))
+plt.show()
+
+# Print summary statistics
+print("Before Normalization:")
+print(
+    f"Train Mean: {tensors_before_train.mean():.4f}, Std: {tensors_before_train.std():.4f}"
+)
+print(
+    f"Test Mean: {tensors_before_test.mean():.4f}, Std: {tensors_before_test.std():.4f}"
+)
+
+print("\nAfter Normalization:")
+print(
+    f"Train Mean: {tensors_after_train.mean():.4f}, Std: {tensors_after_train.std():.4f}"
+)
+print(
+    f"Test Mean: {tensors_after_test.mean():.4f}, Std: {tensors_after_test.std():.4f}"
+)
+
+# %%
