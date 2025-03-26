@@ -33,6 +33,7 @@ class Checkpoint:
             "optimizer_state_dict": self.optimizer.state_dict(),
             "best_val_loss": val_loss,
             "epoch": epoch,
+            "timestamp": datetime.now(),
         }
         t.save(checkpoint, self.latest_model_path)
         print(f"Saved checkpoint to {self.latest_model_path}")
@@ -50,6 +51,9 @@ class Checkpoint:
             self.model.load_state_dict(checkpoint["model_state_dict"])
             self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
             self.best_val_loss = checkpoint["best_val_loss"]
+            self.timestamp = checkpoint["timestamp"]
             print(f"Loaded checkpoint from {path}")
             return True
-        return False
+        else:
+            print(f"No checkpoint found at {path}")
+            return False

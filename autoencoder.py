@@ -5,8 +5,10 @@ from tqdm import tqdm
 
 from checkpoint import Checkpoint
 from data import DataManager
+from dataclasses import dataclass
 
 
+@dataclass
 class AutoencoderConfig:
     hidden_size: int = 128
     encoder_size_1: int = 2048
@@ -15,7 +17,11 @@ class AutoencoderConfig:
     val_split: float = 0.1
     batch_size: int = 1024
     lr: float = 1e-3
-    epochs: int = 10
+    epochs: int = 20
+    # # Scheduler parameters
+    # scheduler_T_0: int = 2  # Number of epochs for the first restart
+    # scheduler_T_mult: int = 2  # Factor to increase T_0 after a restart
+    # scheduler_eta_min: float = 1e-6  # Minimum learning rate
 
 
 class Autoencoder(nn.Module):
@@ -77,6 +83,7 @@ class Trainer:
         self.data_manager = data_manager
         self.model = model
         self.opt = t.optim.AdamW(model.parameters(), lr=config.lr)
+
         self.checkpoint = Checkpoint(
             run_name=run_name,
             model=model,
@@ -86,11 +93,12 @@ class Trainer:
     def evaluate(self) -> float:
         with t.no_grad():
             self.model.eval()
-            loss = 0
+            losses = []
             for x, _ in self.data_manager.val_loader:
                 pred = self.model(x)
-                loss += self.model.loss(pred, x)
-            avg_loss = loss / len(self.data_manager.val_loader)
+                loss = self.model.loss(pred, x)
+                losses.append(loss)
+            avg_loss = t.tensor(losses).mean()
             print(f"Validation loss: {avg_loss:.4f}")
             self.model.train()
             assert isinstance(avg_loss, t.Tensor)
@@ -117,14 +125,14 @@ class Trainer:
                 self.train_step(x)
                 total_steps += 1
 
-            if total_steps % 100 == 0:
-                val_loss = self.evaluate()
-            if total_steps % 1000 == 0:
-                self.checkpoint.save_checkpoint(val_loss, epoch)
+                if total_steps % 100 == 0:
+                    val_loss = self.evaluate()
+                if total_steps % 500 == 0:
+                    self.checkpoint.save_checkpoint(val_loss, epoch)
 
 
 def train():
-    config = AutoencoderConfig()
+    config = AutoencoderConfig(epochs=40)
     data_manager = DataManager()
     data_manager.prepare_data(
         ["mnist", "synthetic"], val_split=config.val_split, batch_size=config.batch_size
@@ -132,7 +140,7 @@ def train():
 
     model = Autoencoder(config)
     trainer = Trainer(
-        config, data_manager, model, "autoencoder_reconstruction_loss_only"
+        config, data_manager, model, "autoencoder_reconstruction_loss_only_no_scheduler"
     )
     trainer.train()
 

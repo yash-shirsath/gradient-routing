@@ -96,10 +96,10 @@ class Trainer:
                 self.train_step(x, y)
                 total_steps += 1
 
-            if total_steps % 100 == 0:
-                val_loss = self.evaluate()
-            if total_steps % 1000 == 0:
-                self.checkpoint.save_checkpoint(val_loss, epoch)
+                if total_steps % 100 == 0:
+                    val_loss = self.evaluate()
+                if total_steps % 1000 == 0:
+                    self.checkpoint.save_checkpoint(val_loss, epoch)
 
 
 def train():
