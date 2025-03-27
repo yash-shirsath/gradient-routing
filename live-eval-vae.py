@@ -27,7 +27,7 @@ data_manager.prepare_data(recipe=["mnist", "synthetic"], val_split=0.0, batch_si
 config = VAEConfig()
 model = VAE(config)
 checkpoint = Checkpoint(
-    run_name="vae_no_routing_l1_only_25_03_26_15_43",
+    run_name="vae_mean_kld_25_03_27_14_23",
     model=model,
     optimizer=t.optim.AdamW(model.parameters(), lr=1),
     postfix_date=False,

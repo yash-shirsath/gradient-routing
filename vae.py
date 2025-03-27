@@ -18,11 +18,12 @@ from torch.autograd import Variable
 @dataclass
 class VAEConfig:
     image_features: int = 28 * 28
-    hidden_sizes: int = 400
+    hidden_size_1: int = 2048
+    hidden_size_2: int = 512
     latent_size: int = 10
 
     val_split: float = 0.1
-    batch_size: int = 512
+    batch_size: int = 128
     epochs: int = 100
     start_lr: float = 1e-3
 
@@ -35,21 +36,25 @@ class VAE(nn.Module):
         super(VAE, self).__init__()
         self.config = config
         self.encoder = nn.Sequential(
-            nn.Linear(config.image_features, self.config.hidden_sizes),
+            nn.Linear(config.image_features, self.config.hidden_size_1),
             nn.ReLU(),
-            nn.Linear(self.config.hidden_sizes, self.config.latent_size),
+            nn.Linear(self.config.hidden_size_1, self.config.hidden_size_2),
+            nn.ReLU(),
+            nn.Linear(self.config.hidden_size_2, self.config.latent_size),
             nn.ReLU(),
         )
         self.mu_head = nn.Linear(self.config.latent_size, self.config.latent_size)
         self.logvar_head = nn.Linear(self.config.latent_size, self.config.latent_size)
 
-        # Initialize logvar to -2.0
-        self.logvar_head.bias.data.fill_(-2.0)
         self.decoder = nn.Sequential(
-            nn.Linear(self.config.latent_size, self.config.hidden_sizes),
+            nn.Linear(self.config.latent_size, self.config.hidden_size_2),
             nn.ReLU(),
-            nn.Linear(self.config.hidden_sizes, self.config.image_features),
+            nn.Linear(self.config.hidden_size_2, self.config.hidden_size_1),
+            nn.ReLU(),
+            nn.Linear(self.config.hidden_size_1, self.config.image_features),
+            nn.Sigmoid(),
         )
+        self.relu = nn.ReLU()
 
     def encode(self, x):
         x = self.encoder(x)
@@ -64,7 +69,8 @@ class VAE(nn.Module):
     ) -> Float[t.Tensor, "batch latent_size"]:
         std = (logvar / 2).exp()
         eps = t.randn_like(std)
-        return eps * std + mu
+        z = eps * std + mu
+        return self.relu(z)
 
     def decode(self, z):
         return self.decoder(z)
@@ -81,11 +87,11 @@ class VAE(nn.Module):
         x = x.view(-1, self.config.image_features)
         mu, logvar = self.encode(x)
         z = self.reparametrize(mu, logvar)
-        if labels is not None:
-            mask_one_hot = F.one_hot(
-                labels, num_classes=self.config.latent_size
-            ).float()  # type: ignore
-            z = mask_one_hot * z + (1 - mask_one_hot) * z.detach()
+        # if labels is not None:
+        #     mask_one_hot = F.one_hot(
+        #         labels, num_classes=self.config.latent_size
+        #     ).float()  # type: ignore
+        #     z = mask_one_hot * z + (1 - mask_one_hot) * z.detach()
         y = self.decode(z)
         return y.view(-1, 1, 28, 28), mu, logvar
 
@@ -95,14 +101,13 @@ class VAE(nn.Module):
         x: Float[t.Tensor, "batch img_size"],
         mu: Float[t.Tensor, "batch latent_size"],
         logvar: Float[t.Tensor, "batch latent_size"],
-        epoch: int = 0,
-    ) -> Tuple[t.Tensor, t.Tensor, t.Tensor, float]:
-        MSE = (recon_x - x).pow(2).mean()
-        KLD = -0.5 * t.sum(1 + logvar - mu.pow(2) - logvar.exp())
-        # Increase beta from 1000 to 5000 over first 20 epochs, then stay at 5000
-        beta = 1000 + min(epoch / 20, 1.0) * 4000
-        total = MSE + beta * KLD
-        return total, MSE, KLD, beta
+    ) -> Tuple[t.Tensor, t.Tensor, t.Tensor]:
+        MSE = ((recon_x - x).norm(dim=-1) ** 2).mean()
+
+        KLD = (mu**2 + logvar.exp() - logvar).mean()
+        B = 0.3
+        total = MSE * B + KLD
+        return total, MSE, KLD
 
 
 class Trainer:
@@ -132,7 +137,6 @@ class Trainer:
                 "total": [],
                 "MSE": [],
                 "KLD": [],
-                "beta": [],
                 "mu_mean": [],
                 "logvar_mean": [],
                 "mu_std": [],
@@ -140,13 +144,15 @@ class Trainer:
             }
             for x, _ in self.data_manager.val_loader:
                 recon_batch, mu, logvar = self.model(x)
-                total, MSE, KLD, beta = self.model.loss(
-                    recon_batch, x, mu, logvar, epoch=self.epoch
+                total, MSE, KLD = self.model.loss(
+                    recon_batch,
+                    x,
+                    mu,
+                    logvar,
                 )
                 losses["total"].append(total)
                 losses["MSE"].append(MSE)
                 losses["KLD"].append(KLD)
-                losses["beta"].append(beta)
                 losses["mu_mean"].append(mu.mean())
                 losses["logvar_mean"].append(logvar.mean())
                 losses["mu_std"].append(mu.std())
@@ -166,7 +172,7 @@ class Trainer:
         assert self.data_manager.train_loader is not None
         self.opt.zero_grad()
         recon_batch, mu, logvar = self.model(x, y)
-        loss, *_ = self.model.loss(recon_batch, x, mu, logvar, epoch=self.epoch)
+        loss, *_ = self.model.loss(recon_batch, x, mu, logvar)
         loss.backward()
         self.opt.step()
         return loss
@@ -201,7 +207,7 @@ def train():
     )
 
     model = VAE(config)
-    trainer = Trainer(config, data_manager, model, "vae_initialize_logvar")
+    trainer = Trainer(config, data_manager, model, "vae_mse_norm_relu_after_reparam")
     trainer.train()
 
 
