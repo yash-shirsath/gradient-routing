@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import Optional, Tuple
-
+from collections import defaultdict
 import einops
 import torch as t
 import torch.nn as nn
@@ -149,15 +149,7 @@ class Trainer:
     def evaluate(self) -> float:
         with t.no_grad():
             self.model.eval()
-            losses = {
-                "val_total": [],
-                "val_MSE": [],
-                "val_KLD": [],
-                "val_mu_mean": [],
-                "val_logvar_mean": [],
-                "val_mu_std": [],
-                "val_logvar_std": [],
-            }
+            losses = defaultdict(list)
             for x, _ in self.data_manager.val_loader:
                 recon_batch, mu, logvar = self.model(x)
                 total, MSE, KLD = self.model.loss(
