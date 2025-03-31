@@ -12,6 +12,8 @@ from checkpoint import Checkpoint
 from torch.utils.data import DataLoader
 from data import DataManager
 from typing import Union, Optional, Tuple, Any
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
 
 # Try to import Autoencoder
 try:
@@ -23,14 +25,26 @@ except ImportError:
 
 # %%
 data_manager = DataManager()
-data_manager.prepare_data(recipe=["mnist", "synthetic"], val_split=0.0, batch_size=1024)
+
+
+data_manager = DataManager()
+mnist_data = datasets.MNIST(
+    "data", train=True, download=True, transform=transforms.ToTensor()
+)
+dataloader = DataLoader(mnist_data, batch_size=128, shuffle=True)  # type: ignore
+validation_data = datasets.MNIST(
+    "data", train=False, download=True, transform=transforms.ToTensor()
+)
+test_loader = DataLoader(validation_data, batch_size=128, shuffle=True)  # type: ignore
+data_manager.train_loader = dataloader
+data_manager.test_loader = test_loader
+
 config = VAEConfig()
 model = VAE(config)
 checkpoint = Checkpoint(
-    run_name="vae_mean_kld_25_03_27_14_23",
+    run_name="vae_their_data_lr_5e-4__vae__25_03_27_22_22",
     model=model,
     optimizer=t.optim.AdamW(model.parameters(), lr=1),
-    postfix_date=False,
 )
 assert checkpoint.load_checkpoint(load_best=True), "Failed to load checkpoint"
 
@@ -309,7 +323,6 @@ if AUTOENCODER_AVAILABLE:
         run_name="autoencoder_reconstruction_loss_only_no_scheduler_25_03_25_06_53",
         model=autoencoder,
         optimizer=t.optim.AdamW(autoencoder.parameters(), lr=1e-3),
-        postfix_date=False,
     )
     if autoencoder_checkpoint.load_checkpoint(load_best=True):
         autoencoder_results = check_reconstruction_similarity(

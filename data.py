@@ -208,7 +208,3 @@ class DataManager:
         self._save_to_cache("synthetic", "test", "labels", synthetic_labels)
 
         return synthetic_tensors, synthetic_labels, test_tensors, test_labels
-
-
-d = DataManager()
-d.prepare_data(["mnist", "synthetic"], val_split=0.1, batch_size=128)

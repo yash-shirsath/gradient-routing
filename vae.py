@@ -6,6 +6,8 @@ import torch as t
 import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
+from torch.utils.data import DataLoader
+from torchvision import datasets, transforms
 
 from checkpoint import Checkpoint
 import wandb
@@ -26,7 +28,7 @@ class VAEConfig:
     val_split: float = 0.1
     batch_size: int = 128
     epochs: int = 100
-    start_lr: float = 1e-3
+    start_lr: float = 5e-4
 
     use_wandb: bool = True
     wandb_project: str = "vae"
@@ -145,6 +147,7 @@ class Trainer:
                 name=self.run_name,
             )
             wandb.watch(self.model, log="all", log_freq=50)
+            wandb.log(self.config.__dict__)
 
     def evaluate(self) -> float:
         with t.no_grad():
@@ -213,12 +216,18 @@ class Trainer:
 def train():
     config = VAEConfig()
     data_manager = DataManager()
-    data_manager.prepare_data(
-        ["mnist", "synthetic"], val_split=config.val_split, batch_size=config.batch_size
+    mnist_data = datasets.MNIST(
+        "data", train=True, download=True, transform=transforms.ToTensor()
     )
-
+    dataloader = DataLoader(mnist_data, batch_size=128, shuffle=True)  # type: ignore
+    validation_data = datasets.MNIST(
+        "data", train=False, download=True, transform=transforms.ToTensor()
+    )
+    validation_dataloader = DataLoader(validation_data, batch_size=128, shuffle=True)  # type: ignore
+    data_manager.train_loader = dataloader
+    data_manager.val_loader = validation_dataloader
     model = VAE(config)
-    trainer = Trainer(config, data_manager, model, "vae_mse_norm_relu_after_reparam")
+    trainer = Trainer(config, data_manager, model, "vae_their_data_lr_5e-4")
     trainer.train()
 
 
