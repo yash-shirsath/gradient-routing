@@ -34,7 +34,11 @@ january24_arena
 changes.md
 talk-animation*
 
-**/data/
+**/data/**/*.pt
+**/data/**/*.bin
+**/data/**/*ubyte
+**/data/**/*.gz
+
 **/checkpoints/
 .vscode/
 __pycache__/
