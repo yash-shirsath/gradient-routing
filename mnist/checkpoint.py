@@ -17,7 +17,8 @@ class Checkpoint:
         self.optimizer = optimizer
         self.best_val_loss = float("inf")
 
-        self.checkpoint_dir = os.path.join("checkpoints", self.run_name)
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        self.checkpoint_dir = os.path.join(script_dir, "checkpoints", self.run_name)
         self.best_model_path = os.path.join(self.checkpoint_dir, "best_model.pt")
         self.latest_model_path = os.path.join(self.checkpoint_dir, "latest_model.pt")
         os.makedirs(self.checkpoint_dir, exist_ok=True)

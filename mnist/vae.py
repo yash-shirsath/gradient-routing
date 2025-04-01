@@ -28,7 +28,7 @@ class VAEConfig:
     val_split: float = 0.1
     batch_size: int = 128
     epochs: int = 100
-    start_lr: float = 5e-4
+    start_lr: float = 1e-3
 
     use_wandb: bool = True
     wandb_project: str = "vae"
@@ -108,7 +108,7 @@ class VAE(nn.Module):
         mu: Float[t.Tensor, "batch latent_size"],
         logvar: Float[t.Tensor, "batch latent_size"],
     ) -> Tuple[t.Tensor, t.Tensor, t.Tensor]:
-        MSE = ((recon_x - x).norm(dim=-1) ** 2).mean()
+        MSE = ((recon_x - x) ** 2).mean()
 
         KLD = (mu**2 + logvar.exp() - logvar).mean()
         B = 0.3
@@ -227,7 +227,7 @@ def train():
     data_manager.train_loader = dataloader
     data_manager.val_loader = validation_dataloader
     model = VAE(config)
-    trainer = Trainer(config, data_manager, model, "vae_their_data_lr_5e-4")
+    trainer = Trainer(config, data_manager, model, "vae_chris_no_norm")
     trainer.train()
 
 
