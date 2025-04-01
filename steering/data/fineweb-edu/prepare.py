@@ -52,7 +52,7 @@ if __name__ == "__main__":
     idx = 0
     for batch_idx in tqdm(range(total_batches), desc=f"writing {filename}"):
         # Batch together samples for faster write
-        batch = dset.shard(
+        batch = tokenized.shard(
             num_shards=total_batches, index=batch_idx, contiguous=True
         ).with_format("numpy")
         arr_batch = np.concatenate(batch["ids"])
@@ -61,9 +61,8 @@ if __name__ == "__main__":
         idx += len(arr_batch)
     arr.flush()
 
-    # train.bin is ~17GB, val.bin ~8.5MB
-    # train has ~9B tokens (9,035,582,198)
-    # val has ~4M tokens (4,434,897)
+    # train.bin is ~19GB
+    # train has ~10B tokens
 
     # to read the bin files later, e.g. with numpy:
     # m = np.memmap('train.bin', dtype=np.uint16, mode='r')
