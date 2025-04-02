@@ -79,9 +79,8 @@ if __name__ == "__main__":
     train_arr.flush()
     val_arr.flush()
 
-    # train.bin is ~19GB
-    print(f"train.bin has {train_idx:.2e} tokens")
-    print(f"val.bin has {val_idx:.2e} tokens")
+    print(f"train.bin has {train_idx:.2e} tokens")  # 8.96e+09 tokens (16.69G)
+    print(f"val.bin has {val_idx:.2e} tokens")  #  9.91e+08 tokens (1.85G)
 
     # to read the bin files later, e.g. with numpy:
     # m = np.memmap('train.bin', dtype=np.uint16, mode='r')
