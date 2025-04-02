@@ -42,7 +42,7 @@ data_manager.test_loader = test_loader
 config = VAEConfig()
 model = VAE(config)
 checkpoint = Checkpoint(
-    run_name="vae_chris_no_norm__vae__25_04_01_11_44",
+    run_name="vae_chris_no_norm__vae__25_04_01_15_07",
     model=model,
     optimizer=t.optim.AdamW(model.parameters(), lr=1),
 )
