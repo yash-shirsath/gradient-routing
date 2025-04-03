@@ -14,6 +14,8 @@ from dataclasses import dataclass
 import torch as t
 import torch.nn as nn
 from torch.nn import functional as F
+from jaxtyping import Int
+from typing import Optional
 
 
 class LayerNorm(nn.Module):
@@ -196,12 +198,20 @@ class GPT(nn.Module):
         elif isinstance(module, nn.Embedding):
             t.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def forward(self, idx, targets=None):
+    def forward(
+        self,
+        idx,
+        targets=None,
+        mask: Optional[Int[t.Tensor, "batch seq n_embd"]] = None,
+    ):
         device = idx.device
         b, s = idx.size()
         assert s <= self.config.block_size, (
             f"Cannot forward sequence of length {s}, block size is only {self.config.block_size}"
         )
+        if mask is not None:
+            assert mask.shape == (b, s, self.config.n_embd)
+
         pos = t.arange(0, s, dtype=t.long, device=device)  # shape (s)
 
         # forward the GPT model itself
@@ -210,6 +220,8 @@ class GPT(nn.Module):
         x = self.transformer.drop(tok_emb + pos_emb)
         for block in self.transformer.h:
             x = block(x)
+            if mask is not None:
+                x = self._mask(x, mask)
         x = self.transformer.ln_f(x)
 
         if targets is not None:

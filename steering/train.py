@@ -28,6 +28,8 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 
 from model import GPTConfig, GPT
+from tokenizer import load_tokenizer
+from routing import get_mask_fn
 
 # -----------------------------------------------------------------------------
 # default config values designed to train a gpt2 (124M) on OpenWebText
@@ -78,6 +80,9 @@ dtype = (
     else "float16"
 )  # 'float32', 'bfloat16', or 'float16', the latter will auto implement a GradScaler
 compile = True  # use PyTorch 2.0 to compile the model to be faster
+
+# Gradient Routing Specific Config
+target_words = {}
 # -----------------------------------------------------------------------------
 config_keys = [
     k
@@ -288,6 +293,9 @@ def get_lr(it):
     return min_lr + coeff * (learning_rate - min_lr)
 
 
+tk = load_tokenizer()
+mask_fn = get_mask_fn(tk, target_words, n_embd)
+
 # logging
 if wandb_log and master_process:
     import wandb
@@ -350,7 +358,7 @@ while True:
                 micro_step == gradient_accumulation_steps - 1
             )
         with ctx:
-            logits, loss = model(X, Y)
+            logits, loss = model(X, Y, mask_fn(Y))
             loss = (
                 loss / gradient_accumulation_steps
             )  # scale the loss to account for gradient accumulation
