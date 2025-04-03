@@ -1,5 +1,6 @@
 .venv
 .direnv
+.DS_Store
 *__pycache__
 *generate_*.py
 *drafts
@@ -33,12 +34,12 @@ january24_arena
 *export.py
 changes.md
 talk-animation*
+*.egg-info/
 
-**/data/**/*.pt
-**/data/**/*.bin
-**/data/**/*ubyte
-**/data/**/*.gz
-
+**/data/**/*
+!**/data/**/*.py
+**/tokenizer/
 **/checkpoints/
+**/out-shakespeare/
 .vscode/
 __pycache__/

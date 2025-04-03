@@ -11,7 +11,7 @@ import math
 import inspect
 from dataclasses import dataclass
 
-import torch
+import torch as t
 import torch.nn as nn
 from torch.nn import functional as F
 
@@ -21,8 +21,8 @@ class LayerNorm(nn.Module):
 
     def __init__(self, ndim, bias):
         super().__init__()
-        self.weight = nn.Parameter(torch.ones(ndim))
-        self.bias = nn.Parameter(torch.zeros(ndim)) if bias else None
+        self.weight = nn.Parameter(t.ones(ndim))
+        self.bias = nn.Parameter(t.zeros(ndim)) if bias else None
 
     def forward(self, input):
         return F.layer_norm(input, self.weight.shape, self.weight, self.bias, 1e-5)
@@ -43,7 +43,7 @@ class CausalSelfAttention(nn.Module):
         self.n_embd = config.n_embd
         self.dropout = config.dropout
         # flash attention make GPU go brrrrr but support is only in PyTorch >= 2.0
-        self.flash = hasattr(torch.nn.functional, "scaled_dot_product_attention")
+        self.flash = hasattr(t.nn.functional, "scaled_dot_product_attention")
         if not self.flash:
             print(
                 "WARNING: using slow attention. Flash Attention requires PyTorch >= 2.0"
@@ -51,7 +51,7 @@ class CausalSelfAttention(nn.Module):
             # causal mask to ensure that attention is only applied to the left in the input sequence
             self.register_buffer(
                 "bias",
-                torch.tril(torch.ones(config.block_size, config.block_size)).view(
+                t.tril(t.ones(config.block_size, config.block_size)).view(
                     1, 1, config.block_size, config.block_size
                 ),
             )
@@ -76,7 +76,7 @@ class CausalSelfAttention(nn.Module):
         # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
         if self.flash:
             # efficient attention using Flash Attention CUDA kernels
-            y = torch.nn.functional.scaled_dot_product_attention(
+            y = t.nn.functional.scaled_dot_product_attention(
                 q,
                 k,
                 v,
@@ -158,7 +158,7 @@ class GPT(nn.Module):
             )
         )
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
-        # with weight tying when using torch.compile() some warnings get generated:
+        # with weight tying when using t.compile() some warnings get generated:
         # "UserWarning: functional_call was passed multiple values for tied weights.
         # This behavior is deprecated and will be an error in future versions"
         # not 100% sure what this is, so far seems to be harmless. TODO investigate
@@ -171,9 +171,7 @@ class GPT(nn.Module):
         # apply special scaled init to the residual projections, per GPT-2 paper
         for pn, p in self.named_parameters():
             if pn.endswith("c_proj.weight"):
-                torch.nn.init.normal_(
-                    p, mean=0.0, std=0.02 / math.sqrt(2 * config.n_layer)
-                )
+                t.nn.init.normal_(p, mean=0.0, std=0.02 / math.sqrt(2 * config.n_layer))
 
         # report number of parameters
         print("number of parameters: %.2fM" % (self.get_num_params() / 1e6,))
@@ -192,19 +190,19 @@ class GPT(nn.Module):
 
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            t.nn.init.normal_(module.weight, mean=0.0, std=0.02)
             if module.bias is not None:
-                torch.nn.init.zeros_(module.bias)
+                t.nn.init.zeros_(module.bias)
         elif isinstance(module, nn.Embedding):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            t.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     def forward(self, idx, targets=None):
         device = idx.device
-        b, t = idx.size()
-        assert t <= self.config.block_size, (
-            f"Cannot forward sequence of length {t}, block size is only {self.config.block_size}"
+        b, s = idx.size()
+        assert s <= self.config.block_size, (
+            f"Cannot forward sequence of length {s}, block size is only {self.config.block_size}"
         )
-        pos = torch.arange(0, t, dtype=torch.long, device=device)  # shape (t)
+        pos = t.arange(0, s, dtype=t.long, device=device)  # shape (s)
 
         # forward the GPT model itself
         tok_emb = self.transformer.wte(idx)  # token embeddings of shape (b, t, n_embd)
@@ -228,6 +226,10 @@ class GPT(nn.Module):
             loss = None
 
         return logits, loss
+
+    def _mask(self, x: t.Tensor, mask: t.Tensor):
+        assert x.shape == mask.shape
+        return x * mask + (x * (1 - mask)).detach()
 
     def crop_block_size(self, block_size):
         # model surgery to decrease the block size if necessary
@@ -303,12 +305,12 @@ class GPT(nn.Module):
             if any(k.endswith(w) for w in transposed):
                 # special treatment for the Conv1D weights we need to transpose
                 assert sd_hf[k].shape[::-1] == sd[k].shape
-                with torch.no_grad():
+                with t.no_grad():
                     sd[k].copy_(sd_hf[k].t())
             else:
                 # vanilla copy over the other parameters
                 assert sd_hf[k].shape == sd[k].shape
-                with torch.no_grad():
+                with t.no_grad():
                     sd[k].copy_(sd_hf[k])
 
         return model
@@ -335,10 +337,10 @@ class GPT(nn.Module):
             f"num non-decayed parameter tensors: {len(nodecay_params)}, with {num_nodecay_params:,} parameters"
         )
         # Create AdamW optimizer and use the fused version if it is available
-        fused_available = "fused" in inspect.signature(torch.optim.AdamW).parameters
+        fused_available = "fused" in inspect.signature(t.optim.AdamW).parameters
         use_fused = fused_available and device_type == "cuda"
         extra_args = dict(fused=True) if use_fused else dict()
-        optimizer = torch.optim.AdamW(
+        optimizer = t.optim.AdamW(
             optim_groups, lr=learning_rate, betas=betas, **extra_args
         )
         print(f"using fused AdamW: {use_fused}")
@@ -361,7 +363,7 @@ class GPT(nn.Module):
         mfu = flops_achieved / flops_promised
         return mfu
 
-    @torch.no_grad()
+    @t.no_grad()
     def generate(self, idx, max_new_tokens, temperature=1.0, top_k=None):
         """
         Take a conditioning sequence of indices idx (LongTensor of shape (b,t)) and complete
@@ -381,13 +383,13 @@ class GPT(nn.Module):
             logits = logits[:, -1, :] / temperature
             # optionally crop the logits to only the top k options
             if top_k is not None:
-                v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
+                v, _ = t.topk(logits, min(top_k, logits.size(-1)))
                 logits[logits < v[:, [-1]]] = -float("Inf")
             # apply softmax to convert logits to (normalized) probabilities
             probs = F.softmax(logits, dim=-1)
             # sample from the distribution
-            idx_next = torch.multinomial(probs, num_samples=1)
+            idx_next = t.multinomial(probs, num_samples=1)
             # append sampled index to the running sequence and continue
-            idx = torch.cat((idx, idx_next), dim=1)
+            idx = t.cat((idx, idx_next), dim=1)
 
         return idx

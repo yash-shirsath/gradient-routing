@@ -12,6 +12,33 @@
             "console": "integratedTerminal",
             "cwd": "${fileDirname}",
             
+        },
+        {
+            "name": "Debug Training: Shakespeare CPU",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "cwd": "${fileDirname}",
+            "args": [
+                "config/shakespeare_cpu.py"
+            ]
+            
+        },
+        {
+            "name": "Python: torchrun",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "torch.distributed.run",
+            "console": "integratedTerminal",
+            "cwd": "${fileDirname}",
+            "args": [
+                "--standalone",
+                "--nproc_per_node=8", // Number of GPUs to use
+                "${file}",
+                "config/gpt2.py",
+            ],
+            "justMyCode": true
         }
     ]
 }
