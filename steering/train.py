@@ -94,6 +94,12 @@ exec(open("configurator.py").read())  # overrides from command line or config fi
 config = {k: globals()[k] for k in config_keys}  # will be useful for logging
 # -----------------------------------------------------------------------------
 
+# Gradient Routing Config
+tk = load_tokenizer()
+mask_fn = get_mask_fn(tk, target_words, n_embd)
+routing_config = RoutingConfig(target_words, target_layers)
+
+
 # various inits, derived attributes, I/O setup
 ddp = int(os.environ.get("RANK", -1)) != -1  # is this a ddp run?
 if ddp:
@@ -200,7 +206,7 @@ if init_from == "scratch":
         )
     model_args["vocab_size"] = meta_vocab_size if meta_vocab_size is not None else 50304
     gptconf = GPTConfig(**model_args)
-    model = GPT(gptconf)
+    model = GPT(gptconf, routing_config)
 elif init_from == "resume":
     print(f"Resuming training from {out_dir}")
     # resume training from a checkpoint.
@@ -213,7 +219,7 @@ elif init_from == "resume":
         model_args[k] = checkpoint_model_args[k]
     # create the model
     gptconf = GPTConfig(**model_args)
-    model = GPT(gptconf)
+    model = GPT(gptconf, routing_config)
     state_dict = checkpoint["model"]
     # fix the keys of the state dictionary :(
     # honestly no idea how checkpoints sometimes get this prefix, have to debug more
@@ -292,11 +298,6 @@ def get_lr(it):
     assert 0 <= decay_ratio <= 1
     coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))  # coeff ranges 0..1
     return min_lr + coeff * (learning_rate - min_lr)
-
-
-tk = load_tokenizer()
-mask_fn = get_mask_fn(tk, target_words, n_embd)
-routing_config = RoutingConfig(target_words, target_layers)
 
 # logging
 if wandb_log and master_process:

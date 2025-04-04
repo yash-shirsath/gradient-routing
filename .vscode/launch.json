@@ -11,7 +11,6 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "cwd": "${fileDirname}",
-            
         },
         {
             "name": "Debug Training: Shakespeare CPU",
@@ -23,7 +22,17 @@
             "args": [
                 "config/shakespeare_cpu.py"
             ]
-            
+        },
+        {
+            "name": "Debug Training: Shakespeare GPU",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "cwd": "${fileDirname}",
+            "args": [
+                "config/shakespeare_gpu.py"
+            ]
         },
         {
             "name": "Python: torchrun",

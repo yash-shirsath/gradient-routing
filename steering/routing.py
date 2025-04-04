@@ -19,7 +19,7 @@ def get_mask_fn(tk: GPT2TokenizerFast, target_words: dict[str, int], n_embd: int
         returns mask (batch, seq, n_embd) where gradients only flow to
         the target_tokens at the specified residual stream indices
         """
-        mask = t.zeros(idx.shape[0], idx.shape[1], n_embd)
+        mask = t.zeros(idx.shape[0], idx.shape[1], n_embd, device=idx.device)
         for tok, layer in target_tokens.items():
             assert layer < n_embd, f"layer {layer} is greater than n_embd {n_embd}"
             mask[..., layer][idx == tok] = 1
