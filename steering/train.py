@@ -29,7 +29,7 @@ from torch.distributed import init_process_group, destroy_process_group
 
 from model import GPTConfig, GPT
 from tokenizer import load_tokenizer
-from routing import get_mask_fn
+from routing import get_mask_fn, RoutingConfig
 
 # -----------------------------------------------------------------------------
 # default config values designed to train a gpt2 (124M) on OpenWebText
@@ -83,6 +83,7 @@ compile = True  # use PyTorch 2.0 to compile the model to be faster
 
 # Gradient Routing Specific Config
 target_words = {}
+target_layers = set()
 # -----------------------------------------------------------------------------
 config_keys = [
     k
@@ -295,6 +296,7 @@ def get_lr(it):
 
 tk = load_tokenizer()
 mask_fn = get_mask_fn(tk, target_words, n_embd)
+routing_config = RoutingConfig(target_words, target_layers)
 
 # logging
 if wandb_log and master_process:
@@ -362,10 +364,10 @@ while True:
             loss = (
                 loss / gradient_accumulation_steps
             )  # scale the loss to account for gradient accumulation
-        # immediately async prefetch next batch while model is doing the forward pass on the GPU
-        X, Y = get_batch("train")
         # backward pass, with gradient scaling if training in fp16
         scaler.scale(loss).backward()
+        # immediately async prefetch next batch while model is doing the forward pass on the GPU
+        X, Y = get_batch("train")
     # clip the gradient
     if grad_clip != 0.0:
         scaler.unscale_(optimizer)

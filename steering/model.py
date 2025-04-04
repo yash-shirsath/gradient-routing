@@ -16,6 +16,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 from jaxtyping import Int
 from typing import Optional
+from routing import RoutingConfig
 
 
 class LayerNorm(nn.Module):
@@ -144,12 +145,12 @@ class GPTConfig:
 
 
 class GPT(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, routing_config=RoutingConfig()):
         super().__init__()
         assert config.vocab_size is not None
         assert config.block_size is not None
         self.config = config
-
+        self.routing_config = routing_config
         self.transformer = nn.ModuleDict(
             dict(
                 wte=nn.Embedding(config.vocab_size, config.n_embd),
@@ -218,9 +219,9 @@ class GPT(nn.Module):
         tok_emb = self.transformer.wte(idx)  # token embeddings of shape (b, t, n_embd)
         pos_emb = self.transformer.wpe(pos)  # position embeddings of shape (t, n_embd)
         x = self.transformer.drop(tok_emb + pos_emb)
-        for block in self.transformer.h:
+        for i, block in enumerate(self.transformer.h):
             x = block(x)
-            if mask is not None:
+            if mask is not None and i in self.routing_config.target_layers:
                 x = self._mask(x, mask)
         x = self.transformer.ln_f(x)
 

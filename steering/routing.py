@@ -1,4 +1,5 @@
 # %%
+from dataclasses import dataclass, field
 import torch as t
 from jaxtyping import Int
 from transformers import GPT2TokenizerFast
@@ -28,6 +29,10 @@ def get_mask_fn(tk: GPT2TokenizerFast, target_words: dict[str, int], n_embd: int
 
 
 # %%
+@dataclass
+class RoutingConfig:
+    target_words: dict[str, int] = field(default_factory=dict)
+    target_layers: set[int] = field(default_factory=set)
 
 
 # %%

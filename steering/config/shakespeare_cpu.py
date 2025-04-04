@@ -1,7 +1,7 @@
 out_dir = "out-shakespeare"
-eval_interval = 250
+eval_interval = 25
 eval_iters = 20
-log_interval = 10
+log_interval = 1
 
 # we expect to overfit on this small dataset, so only save when val improves
 always_save_checkpoint = False
@@ -39,3 +39,5 @@ target_words = {
     "KING RICHARD III": 0,
     "QUEEN MARGARET": 0,
 }
+
+target_layers = set([1, 2])
