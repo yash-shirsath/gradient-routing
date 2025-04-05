@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 import torch as t
 from jaxtyping import Int
 from transformers import GPT2TokenizerFast
+# %%
 
 
 def get_mask_fn(tk: GPT2TokenizerFast, target_words: dict[str, int], n_embd: int):
@@ -19,10 +20,14 @@ def get_mask_fn(tk: GPT2TokenizerFast, target_words: dict[str, int], n_embd: int
         returns mask (batch, seq, n_embd) where gradients only flow to
         the target_tokens at the specified residual stream indices
         """
-        mask = t.zeros(idx.shape[0], idx.shape[1], n_embd, device=idx.device)
-        for tok, layer in target_tokens.items():
-            assert layer < n_embd, f"layer {layer} is greater than n_embd {n_embd}"
-            mask[..., layer][idx == tok] = 1
+        mask = t.ones(idx.shape[0], idx.shape[1], n_embd, device=idx.device)
+        for tok, resid_dim in target_tokens.items():
+            assert resid_dim < n_embd, (
+                f"layer {resid_dim} is greater than n_embd {n_embd}"
+            )
+            mask[idx == tok] = 0
+            positions = (idx == tok).nonzero(as_tuple=True)
+            mask[positions[0], positions[1], resid_dim] = 1
         return mask
 
     return mask_fn
@@ -52,9 +57,10 @@ def test_mask_fn():
         "input_ids"
     ]
     decoded_batch = tk.batch_decode(batch_tokens)
-    print(decoded_batch)
+    print(decoded_batch[0])
+    print(decoded_batch[1])
+    print(decoded_batch[2])
 
-    # %%
     n_embd = 12
     mask_fn = get_mask_fn(tk, target_words, n_embd)
     mask = mask_fn(batch_tokens)
@@ -104,3 +110,20 @@ if __name__ == "__main__":
 #     "KING HENRY III": 1,
 #     "KING RICHARD III": 2,
 # }  # mapping word to n_embd index
+
+# %%
+# t.manual_seed(43)
+# idx = t.randint(0, 2000, (3, 4))
+# idx[[0, 1], [1, 3]] = 5
+# print("input batch of tokens:")
+# idx
+# # %%
+# mask = t.ones(idx.shape[0], idx.shape[1], 10)
+# mask
+# # %%
+# # This sets only the 0th layer where idx == 5
+# mask[idx == 5] = 0
+# positions = (idx == 5).nonzero(as_tuple=True)
+# mask[positions[0], positions[1], 0] = 1
+# mask[..., 2]
+# %%

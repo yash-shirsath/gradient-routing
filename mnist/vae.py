@@ -110,7 +110,9 @@ class VAE(nn.Module):
     ) -> Tuple[t.Tensor, t.Tensor, t.Tensor]:
         MSE = ((recon_x - x) ** 2).mean()
 
-        KLD = (mu**2 + logvar.exp() - logvar).mean()
+        KLD = (
+            mu**2 + logvar.exp() - logvar
+        ).mean()  # todo not having a kld loss term. todo: look and see if encoding
         B = 0.3
         total = MSE * B + KLD
         return total, MSE, KLD

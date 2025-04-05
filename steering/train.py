@@ -299,6 +299,7 @@ def get_lr(it):
     coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))  # coeff ranges 0..1
     return min_lr + coeff * (learning_rate - min_lr)
 
+
 # logging
 if wandb_log and master_process:
     import wandb
@@ -361,7 +362,8 @@ while True:
                 micro_step == gradient_accumulation_steps - 1
             )
         with ctx:
-            logits, loss = model(X, Y, mask_fn(Y))
+            mask = mask_fn(Y)
+            logits, loss = model(X, Y, mask)
             loss = (
                 loss / gradient_accumulation_steps
             )  # scale the loss to account for gradient accumulation
@@ -391,7 +393,7 @@ while True:
             mfu = raw_model.estimate_mfu(batch_size * gradient_accumulation_steps, dt)
             running_mfu = mfu if running_mfu == -1.0 else 0.9 * running_mfu + 0.1 * mfu
         print(
-            f"iter {iter_num}: loss {lossf:.4f}, time {dt * 1000:.2f}ms, mfu {running_mfu * 100:.2f}%"
+            f"iter {iter_num}: loss {lossf:.4f}, time {dt * 1000:.2f}ms, mfu {running_mfu * 100:.2f}%, mask_mean: {mask.mean()}"
         )
     iter_num += 1
     local_iter_num += 1
