@@ -7,6 +7,11 @@ from transformers import GPT2TokenizerFast
 
 
 def get_mask_fn(tk: GPT2TokenizerFast, target_words: dict[str, int], n_embd: int):
+    """
+    tk: tokenizer
+    target_words: mapping from word to residual stream index where gradients from that word are localized
+    n_embd: number of embedding dimensions
+    """
     target_tokens = {}
     for word, i in target_words.items():
         encoded = tk.encode(word)
@@ -17,6 +22,7 @@ def get_mask_fn(tk: GPT2TokenizerFast, target_words: dict[str, int], n_embd: int
 
     def mask_fn(idx: Int[t.Tensor, "batch seq"]):
         """
+        idx: ids of tokens passed to the model
         returns mask (batch, seq, n_embd) where gradients only flow to
         the target_tokens at the specified residual stream indices
         """
