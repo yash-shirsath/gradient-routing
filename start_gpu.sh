@@ -27,3 +27,6 @@ wandb login ${WANDB_API_KEY}
 curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-linux-x86_64.tar.gz
 tar -xf google-cloud-cli-linux-x86_64.tar.gz
 ./google-cloud-sdk/install.sh
+
+# Materialize the script with actual tokens
+source .env && envsubst '${GITHUB_TOKEN} ${WANDB_API_KEY}' < start_gpu.sh > start_gpu_materialized.sh
