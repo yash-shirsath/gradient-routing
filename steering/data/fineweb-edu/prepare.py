@@ -1,7 +1,7 @@
 import os
 from tqdm import tqdm
 import numpy as np
-import tiktoken
+from steering.tokenizer import load_tokenizer
 from datasets import load_dataset, Dataset
 
 # number of workers in .map() call
@@ -13,7 +13,9 @@ num_proc = 8
 # it is better than 1 usually though
 num_proc_load_dataset = num_proc
 
-enc = tiktoken.get_encoding("gpt2")
+enc = load_tokenizer()
+print("Existing tokenizer found with added tokens:")
+print(enc.get_added_vocab())
 
 if __name__ == "__main__":
     dataset = load_dataset(
@@ -21,14 +23,13 @@ if __name__ == "__main__":
         name="sample-10BT",
         split="train",
         num_proc=num_proc,
-    )  # type: ignore
+    )
 
     # we now want to tokenize the dataset. first define the encoding function (gpt2 bpe)
     def process(example):
-        ids = enc.encode_ordinary(
-            example["text"]
-        )  # encode_ordinary ignores any special tokens
-        ids.append(enc.eot_token)
+        ids = enc.encode(example["text"])
+        assert enc.eos_token_id
+        ids.append(enc.eos_token_id)
         out = {"ids": ids, "len": len(ids)}
         return out
 
