@@ -1,32 +1,43 @@
-# config for training GPT-2 (124M) down to very nice loss of ~2.85 on 1 node of 8X A100 40GB
-# launch as the following (e.g. in a screen session) and wait ~5 days:
-# $ torchrun --standalone --nproc_per_node=8 train.py config/train_gpt2.py
+out_dir = "out-fwe"
+eval_interval = 250
+eval_iters = 200
+log_interval = 10
+
+# we expect to overfit on this small dataset, so only save when val improves
+always_save_checkpoint = False
 
 wandb_log = True
-wandb_project = "fwe"
-wandb_run_name = "gpt2-124M"
-
+wandb_project = "gradient-routing-fwe"
+wandb_run_name = "13-14-15"
 
 dataset = "fineweb-edu"
+gradient_accumulation_steps = 40
 batch_size = 64
-block_size = 512
-gradient_accumulation_steps = 1
+block_size = 1024
 
+# model config
+n_layer = 24
+n_head = 16
+n_embd = 1024
+dropout = 0.2
 
+learning_rate = 6e-4 
 max_iters = 5000
 lr_decay_iters = 5000
+min_lr = 6e-5  # learning_rate / 10 usually
+beta1 = 0.9 
+beta2 = 0.95
+
+warmup_iters = 1000
 
 
-eval_interval = 500
-eval_iters = 200
-log_interval = 50
+device = "cuda" 
+compile = False
 
-
-weight_decay = 1e-1
 
 # Gradient Routing Config Values
 target_words = {
-    "KING HENRY III": 0,
+    "python": 0,
 }
 
-target_layers = set([5, 6, 7])
+target_layers = set([13,14,15])
