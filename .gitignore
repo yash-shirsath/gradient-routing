@@ -1,3 +1,4 @@
+.env
 .venv
 .direnv
 .DS_Store
