@@ -35,6 +35,17 @@
             ]
         },
         {
+            "name": "Debug Training: GPT2 GPU",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "cwd": "${fileDirname}",
+            "args": [
+                "config/gpt2.py"
+            ]
+        },
+        {
             "name": "Python: torchrun",
             "type": "debugpy",
             "request": "launch",
