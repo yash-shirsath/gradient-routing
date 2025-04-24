@@ -44,3 +44,5 @@ talk-animation*
 **/out-shakespeare/
 .vscode/
 __pycache__/
+
+start_gpu_materialized.sh
