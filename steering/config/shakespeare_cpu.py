@@ -35,9 +35,8 @@ compile = False  # do not torch compile the model
 
 # Gradient Routing Config Values
 target_words = {
-    "KING HENRY III": 0,
-    "KING RICHARD III": 0,
-    "QUEEN MARGARET": 0,
+    "Henry": 0,
+    "HENRY": 0,
 }
 
 target_layers = set([1, 2])

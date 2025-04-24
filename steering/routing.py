@@ -49,13 +49,16 @@ def get_mask_fn(tk: GPT2TokenizerFast, target_words: dict[str, int], n_embd: int
 
 
 def topk_tokens_by_dim(
-    k: int, dim: int, unembed: Float[t.Tensor, "vocab hidden"], tk: GPT2TokenizerFast
-) -> list[str]:
+    k: int,
+    dim: int,
+    unembed: Float[t.Tensor, "vocab hidden"],
+) -> Int[t.Tensor, "k"]:
     """
     k: number of tokens to return
     dim: dimension in residual stream where gradients are localized
     unembed: unembedding matrix
-    returns top k tokens with highest cosine similarity to the dim-th dimension of the unembed matrix
+    tokenizer: optional tokenizer for debugging/exploration
+    returns top k ids with highest cosine similarity to the dim-th dimension of the unembed matrix
     """
     v, h = unembed.shape
     assert k < v and dim < h
@@ -63,10 +66,12 @@ def topk_tokens_by_dim(
     l2 = unembed.norm(p=2, dim=1, keepdim=True)
     normalized_unembed = unembed / l2
 
-    _, indices = normalized_unembed[:, dim].topk(k)
-    assert len(indices) == k
+    _, most_positive = normalized_unembed[:, dim].topk(k)
+    _, most_negative = normalized_unembed[:, dim].topk(k, largest=False)
+    assert len(most_positive) == k
+    assert len(most_negative) == k
 
-    return [tk.decode(i) for i in indices]
+    return t.cat([most_positive, most_negative])
 
 
 # %%

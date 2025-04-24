@@ -16,7 +16,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 from jaxtyping import Int
 from typing import Optional
-from routing import RoutingConfig
+from routing import RoutingConfig, topk_tokens_by_dim
 
 
 class LayerNorm(nn.Module):
@@ -375,6 +375,14 @@ class GPT(nn.Module):
         flops_promised = 312e12  # A100 GPU bfloat16 peak flops is 312 TFLOPS
         mfu = flops_achieved / flops_promised
         return mfu
+
+    @t.no_grad()
+    def get_top_routed_ids(self, top_k=10):
+        return topk_tokens_by_dim(
+            top_k,
+            list(self.routing_config.target_words.values())[0],
+            self.lm_head.weight.detach(),
+        )
 
     @t.no_grad()
     def generate(self, idx, max_new_tokens, temperature=1.0, top_k=None):

@@ -324,14 +324,21 @@ while True:
         print(
             f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}"
         )
+        top_routed_ids = model.get_top_routed_ids().cpu().numpy()
+        tokens = [tk.decode(i) for i in top_routed_ids]
+        print(
+            f"step {iter_num}: most positive tokens: {tokens[:10]}, most negative tokens: {tokens[-10:]}"
+        )
+
         if wandb_log:
             wandb.log(
                 {
-                    "iter": iter_num,
+                    "step": iter_num,
                     "train/loss": losses["train"],
                     "val/loss": losses["val"],
                     "lr": lr,
                     "mfu": running_mfu * 100,  # convert to percentage
+                    "top_routed_tokens": tokens,
                 }
             )
         if losses["val"] < best_val_loss or always_save_checkpoint:

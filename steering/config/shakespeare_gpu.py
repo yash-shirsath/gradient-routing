@@ -30,15 +30,14 @@ beta2 = 0.99  # make a bit bigger because number of tokens per iter is small
 warmup_iters = 100  # not super necessary potentially
 
 
-device = "cuda" 
+device = "cuda"
 compile = False
 
 
 # Gradient Routing Config Values
 target_words = {
-    "KING HENRY III": 0,
-    "KING RICHARD III": 0,
-    "QUEEN MARGARET": 0,
+    "Henry": 0,
+    "HENRY": 0,
 }
 
-target_layers = set([3,4,5])
+target_layers = set([3, 4, 5])

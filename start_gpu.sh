@@ -13,8 +13,8 @@ pip3 install --pre torch torchvision torchaudio --index-url https://download.pyt
 # in parallel
 sudo apt install build-essential
 
-code --install-extension ms-python.python
-code --install-extension nvidia.nsight-vscode-edition
+cursor --install-extension ms-python.python
+cursor --install-extension nvidia.nsight-vscode-edition
 
 
 pip install transformers datasets jaxtyping wandb
