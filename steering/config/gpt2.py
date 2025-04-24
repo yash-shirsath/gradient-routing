@@ -41,3 +41,4 @@ target_words = {
 }
 
 target_layers = set([13, 14, 15])
+top_tokens_log_frequently = True

@@ -7,8 +7,8 @@ log_interval = 10
 always_save_checkpoint = False
 
 wandb_log = True
-wandb_project = "gradient-routing"
-wandb_run_name = "gpu-shakespeare-345"
+wandb_project = "gradient-routing-shakespeare"
+wandb_run_name = "3-4-5 test"
 
 dataset = "shakespeare"
 gradient_accumulation_steps = 1

@@ -84,6 +84,7 @@ compile = True  # use PyTorch 2.0 to compile the model to be faster
 # Gradient Routing Specific Config
 target_words = {}
 target_layers = set()
+top_tokens_log_frequently = False
 # -----------------------------------------------------------------------------
 config_keys = [
     k
@@ -284,6 +285,14 @@ def estimate_loss():
     model.train()
     return out
 
+def get_top_routed_tokens():
+    top_routed_ids = model.get_top_routed_ids().cpu().numpy()
+    tokens = [tk.decode(i) for i in top_routed_ids]
+    print(
+        f"step {iter_num}: most positive tokens: {tokens[:10]}, most negative tokens: {tokens[-10:]}"
+    )
+    return tokens
+
 
 # learning rate decay scheduler (cosine with warmup)
 def get_lr(it):
@@ -324,11 +333,7 @@ while True:
         print(
             f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}"
         )
-        top_routed_ids = model.get_top_routed_ids().cpu().numpy()
-        tokens = [tk.decode(i) for i in top_routed_ids]
-        print(
-            f"step {iter_num}: most positive tokens: {tokens[:10]}, most negative tokens: {tokens[-10:]}"
-        )
+        tokens = get_top_routed_tokens()
 
         if wandb_log:
             wandb.log(
@@ -402,6 +407,15 @@ while True:
         print(
             f"iter {iter_num}: loss {lossf:.4f}, time {dt * 1000:.2f}ms, mfu {running_mfu * 100:.2f}%, mask_mean: {mask.mean()}"
         )
+        if wandb_log:
+            log = {
+                "step": iter_num,
+                "train/loss": lossf,
+            }
+            if top_tokens_log_frequently:
+                tokens = get_top_routed_tokens()
+                log["top_routed_tokens"] = tokens
+            wandb.log(log)
     iter_num += 1
     local_iter_num += 1
 
