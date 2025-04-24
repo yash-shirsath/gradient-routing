@@ -375,21 +375,6 @@ while True:
             )
         with ctx:
             mask = mask_fn(Y)
-            # mask b,s,e 
-            if not torch.allclose(mask.mean(), torch.tensor(1.0)):
-                targets = (mask[:,:,1] == 0)
-                
-                # Get indices where targets appear
-                target_positions = targets.nonzero()
-                batch_idxs, seq_idxs = target_positions[:,0], target_positions[:,1]
-                
-                # Get 5 tokens before and after each target
-                for b, s in zip(batch_idxs, seq_idxs):
-                    start = max(0, s-5)
-                    end = min(Y.shape[1], s+6)
-                    context = Y[b, start:end]
-                    print(f"Context: {tk.decode(context.tolist())}")
-                    print(f"Target token: {tk.decode([Y[b,s].item()])}")
             logits, loss = model(X, Y, mask)
             loss = (
                 loss / gradient_accumulation_steps
