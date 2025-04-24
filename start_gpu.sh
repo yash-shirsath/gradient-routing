@@ -28,5 +28,10 @@ curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-
 tar -xf google-cloud-cli-linux-x86_64.tar.gz
 ./google-cloud-sdk/install.sh
 
+gcloud init
+cd '/root/gradient-routing/steering/data/fineweb-edu'
+gsutil -m cp gs://gradient-routing/*.bin .
+
+
 # Materialize the script with actual tokens
 source .env && envsubst '${GITHUB_TOKEN} ${WANDB_API_KEY}' < start_gpu.sh > start_gpu_materialized.sh
